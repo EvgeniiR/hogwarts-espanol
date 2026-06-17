@@ -17,7 +17,8 @@ export let S = {
   challenges:{},challengeDone:{},challengesCompleted:0,
   voicePrefs:{f:'',m:''},modelPrefs:{anthropic:'',gemini:'',groq:''},
   achievements:{streak:0,msgs:0,vocab:0,challenges:0,pts:0},
-  levelWindow:[],gameDifficulty:'medium',musicOff:false
+  levelWindow:[],gameDifficulty:'medium',musicOff:false,ttsOff:false,
+  version:2
 };
 
 export const R = {
@@ -36,14 +37,17 @@ export function pruneOldDates(obj,days){
   }));
 }
 
+let _onSaveError=null;
+export function onSaveError(cb){_onSaveError=cb;}
+
 export async function saveS(){
   try{
     const d={...S,
-      hist:Object.fromEntries(Object.entries(S.hist).map(([k,v])=>[k,v.slice(-25)])),
+      hist:Object.fromEntries(Object.entries(S.hist).map(([k,v])=>[k,v.filter(m=>!m.error).slice(-25)])),
       grammar:S.grammar.slice(-80),mistakes:S.mistakes.slice(-60),vocab:S.vocab.slice(-200),
       challenges:pruneOldDates(S.challenges,14),challengeDone:pruneOldDates(S.challengeDone,14)};
     await kvSet('hp_v1',JSON.stringify(d));
-  }catch(e){}
+  }catch(e){if(_onSaveError)_onSaveError(e);}
 }
 
 export async function loadS(){
@@ -69,6 +73,7 @@ export async function loadS(){
       if(d.levelWindow)S.levelWindow=d.levelWindow;
       if(d.gameDifficulty)S.gameDifficulty=d.gameDifficulty;
       if(d.musicOff!==undefined)S.musicOff=d.musicOff;
+      if(d.ttsOff!==undefined)S.ttsOff=d.ttsOff;
       // Persistent challenge counter (BUGFIX): the old metric counted
       // S.challengeDone, which is pruned to 14 days, so the achievement bar
       // slid backward over time. Seed the new counter from the best evidence
@@ -77,6 +82,7 @@ export async function loadS(){
       S.challengesCompleted=Math.max(d.challengesCompleted||0,(S.achievements.challenges||0),doneNow);
     }
   }catch(e){}
+  S.version=2;
   const now=Date.now();
   S.vocab.forEach(v=>{if(!v.ts)v.ts=now;});
   S.mistakes.forEach(m=>{if(!m.ts)m.ts=now;});

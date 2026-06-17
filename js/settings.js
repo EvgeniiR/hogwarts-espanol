@@ -23,6 +23,11 @@ export function renderSettings(){
     const voices=spanishVoices();
     const opts=g=>'<option value="">Automático</option>'+voices.map(v=>`<option value="${esc(v.name)}" ${S.voicePrefs[g]===v.name?'selected':''}>${esc(v.name)}</option>`).join('');
     el.innerHTML=`
+      <div class="svc-row"><div class="svc-lbl">Voz automática</div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--ink);">
+          <input type="checkbox" ${S.ttsOff?'':'checked'} onchange="setTtsOff(!this.checked)">
+          Leer respuestas en voz alta
+        </label></div>
       <div class="svc-row"><div class="svc-lbl">Voz de Hermione (femenina)</div>
         <select onchange="setVoicePref('f',this.value)">${opts('f')}</select>
         <button onclick="testVoice('f')">▶ Probar</button></div>
@@ -99,6 +104,7 @@ export function openAchievements(){renderAchievements();document.getElementById(
 export function closeAchievements(){document.getElementById('achievementsOv').style.display='none';}
 
 export function setModelPref(provider,v){S.modelPrefs[provider]=v;saveS();}
+export function setTtsOff(v){S.ttsOff=v;saveS();}
 export function setAuthProvider(p){R.provider=p;renderSettings();}
 
 export async function validateProviderKey(provider,key){
@@ -107,7 +113,7 @@ export async function validateProviderKey(provider,key){
     if(provider==='groq'){
       res=await fetch('https://api.groq.com/openai/v1/models',{headers:{'Authorization':`Bearer ${key}`}});
     }else if(provider==='gemini'){
-      res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
+      res=await fetch('https://generativelanguage.googleapis.com/v1beta/models',{headers:{'x-goog-api-key':key}});
     }else{
       res=await fetch('https://api.anthropic.com/v1/models',{headers:{'x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}});
     }

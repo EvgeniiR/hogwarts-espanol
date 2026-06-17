@@ -21,7 +21,7 @@ export function pickVoice(gender){
 
 export function speak(txt,rate){
   if(!('speechSynthesis' in window))return;
-  const clean=txt.replace(/[💡✨🐉📋][\s\S]{0,300}$/,'').trim().substring(0,300);
+  const clean=txt.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}]/gu,' ').replace(/\s+/g,' ').trim().substring(0,300);
   const gender=chars[R.cur]?.gender||'m';
   const u=new SpeechSynthesisUtterance(clean);u.lang='es-ES';u.rate=rate||.88;
   const {voice,matched}=pickVoice(gender);
@@ -29,7 +29,7 @@ export function speak(txt,rate){
   u.pitch=matched?1:(gender==='f'?1.25:0.92);
   window.speechSynthesis.cancel();window.speechSynthesis.speak(u);
 }
-export function speakFromBtn(btn){const t=btn.dataset.txt;if(t)speak(t);}
+export function speakFromBtn(btn){const t=btn.dataset.txt;const rate=btn.dataset.rate?parseFloat(btn.dataset.rate):undefined;if(t)speak(t,rate);}
 
 export function setVoicePref(gender,name){S.voicePrefs[gender]=name||'';saveS();}
 export function testVoice(gender){

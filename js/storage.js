@@ -12,8 +12,6 @@ export async function kvGet(key){
 }
 
 export async function kvSet(key,val){
-  try{
-    if(window.storage)await window.storage.set(key,val);
-    else localStorage.setItem(key,val);
-  }catch(e){}
+  if(window.storage)await window.storage.set(key,val);
+  else localStorage.setItem(key,val);
 }

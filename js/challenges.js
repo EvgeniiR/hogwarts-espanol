@@ -5,7 +5,7 @@
 import { S, R, saveS } from './state.js';
 import { chars, LEVELS } from './characters.js';
 import { callLLM } from './llm.js';
-import { aResize, extractJSON } from './helpers.js';
+import { aResize, extractJSON, showToast } from './helpers.js';
 
 export const CHALLENGE_PROMPT=`You are a creative Spanish-language teacher and Harry Potter super-fan.
 Today is {{DATE}}. Generate exactly 4 daily role-play challenges for the app Hogwarts Español,
@@ -61,11 +61,15 @@ export function updateChalTxt(k){
   }
 }
 
+let challengesLoading=false;
+
 export async function genDailyChallenges(){
   const today=new Date().toISOString().slice(0,10);
   if(S.challenges[today]&&Object.keys(S.challenges[today]).length===4){
     updateChalTxt(R.cur);renderChallengeUI(R.cur);return;
   }
+  if(challengesLoading)return;
+  challengesLoading=true;
   document.getElementById('chalTxt').textContent='✨ Generando desafíos de hoy…';
   try{
     const raw=await callLLM(null,[{role:'user',content:CHALLENGE_PROMPT.replace(/\{\{LEVEL\}\}/g,LEVELS[S.level]).replace(/\{\{DATE\}\}/g,today)}],800,'low');
@@ -75,6 +79,13 @@ export async function genDailyChallenges(){
       arr.forEach(c=>{if(c.character&&c.challenge&&c.exampleOpener)map[c.character]={challenge:c.challenge,focus:c.focus||'',exampleOpener:c.exampleOpener};});
       if(Object.keys(map).length===4){S.challenges[today]=map;saveS();}
     }
-  }catch(e){}
+  }catch(e){
+    showToast('No se pudo generar el desafío de hoy. Inténtalo más tarde.','#5a0000','#f5e5c0');
+    const op=document.getElementById('chalOpener');
+    if(op){op.textContent='🔄 Reintentar';op.style.cursor='pointer';op.onclick=()=>retryChallenges();}
+  }
+  challengesLoading=false;
   updateChalTxt(R.cur);renderChallengeUI(R.cur);
 }
+
+export function retryChallenges(){genDailyChallenges();}

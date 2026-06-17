@@ -12,8 +12,8 @@ Built for a specific user (~A2/B1 Spanish, ~1.5 years Duolingo). Deployed on Clo
 
 ```
 hogwarts-espanol.html   ← HTML shell only. No JS, no CSS.
-css/styles.css          ← All styles (~150 lines, static)
-js/                     ← ES modules (16 files)
+css/styles.css          ← All styles (~178 lines, static)
+js/                     ← ES modules (20 files)
 audio/                  ← Ambient MP3s + manifest.json
 index.html              ← Redirects to hogwarts-espanol.html
 DEPLOY.md               ← Deploy instructions
@@ -27,21 +27,25 @@ When editing a feature, load **only this file** — not the whole project.
 | Feature | File |
 |---------|------|
 | App entry point, init, window bindings | `js/main.js` |
-| Persisted state (S), runtime state (R), loadS/saveS | `js/state.js` |
+| Persisted state (S), runtime state (R), loadS/saveS, onSaveError | `js/state.js` |
 | localStorage / window.storage abstraction | `js/storage.js` |
-| Shared pure utilities (esc, showToast, normWords, weekStart…) | `js/helpers.js` |
+| Shared pure utilities (esc, showToast, normWords, weekStart, extractJSON…) | `js/helpers.js` |
 | Character definitions, system-prompt assembly (`buildSys`, `getSys`) | `js/characters.js` |
 | SVG portraits (static, rarely changes) | `js/portraits.js` |
 | LLM router: Anthropic / Gemini / Groq | `js/llm.js` |
 | API key persistence, provider selection | `js/credentials.js` |
 | Ambient music, drone synth, UI beeps | `js/audio.js` |
-| Text-to-speech (speak, voice picker) | `js/tts.js` |
+| Text-to-speech (speak, speakFromBtn with rate, voice picker) | `js/tts.js` |
 | Points, streak, level, achievements, HP milestones | `js/progress.js` |
 | Daily challenges (gen + render) | `js/challenges.js` |
 | sendMsg, message render, character select, hints, owl | `js/chat.js` |
 | Side panel: vocab/grammar/mistakes tabs, flashcards, vocab CRUD | `js/sidepanel.js` |
-| Minigames: dictation + translation (unified engine) | `js/games.js` |
-| Settings overlay: voice, model, auth, achievements | `js/settings.js` |
+| Minigame engine primitives (round, game, GAME_DIFF, award, wordDiffHtml, etc.) — leaf module | `js/game-core.js` |
+| Minigame overlay routing only (imports from game-core.js) | `js/games.js` |
+| Dictation game | `js/game-dictation.js` |
+| Translation game | `js/game-translation.js` |
+| Word-order game (drag-and-drop, requires SortableJS CDN) | `js/game-order.js` |
+| Settings overlay: voice, model, auth | `js/settings.js` |
 | All CSS | `css/styles.css` |
 
 **For cross-cutting changes** (e.g. a new state field), you'll need `state.js` + the module(s) that read/write it.
@@ -84,7 +88,9 @@ S = {
   achievements: {streak, msgs, vocab, challenges, pts, hp_firstYear, hp_quidditch, hp_merlin, hp_champion},
   levelWindow: bool[],       // last 30 correct/incorrect outcomes
   gameDifficulty: 'easy'|'medium'|'hard',
-  musicOff: false            // persisted music on/off state
+  musicOff: false,           // persisted music on/off state
+  ttsOff: false,             // persisted TTS mute state (use !==undefined check in loadS)
+  version: 2                 // schema version stamp
 }
 ```
 
@@ -131,16 +137,35 @@ System prompts are assembled by `buildSys(persona, jsonShape)` in `characters.js
 
 Valid effort values: `low`, `medium`, `high`, `xhigh`, `max` — passed as `output_config:{effort}` in the Anthropic request body.
 
+All three providers use `fetchWithTimeout` (30s) defined in `llm.js`. `AbortError` is non-retryable.
+
 ## Daily challenges
 
 `CHALLENGE_PROMPT` in `challenges.js`: single batch LLM call → `S.challenges[today]` keyed by ISO date. Each challenge: `{challenge, focus, exampleOpener}`. Done: `S.challengeDone['charKey_YYYY-MM-DD']` (pruned 14d) + `S.challengesCompleted` (persistent, never pruned).
 
-## Settings tabs
+## Settings / overlays
 
-- **🔊 Voz** — TTS voice picker; male/female; test button
-- **🧠 Modelo** — per-provider model selector (reads `R.provider`)  
-- **🔑 Cuenta** — API key management; green-dot indicator; instant validation (`validateProviderKey`); hidden-input "Cambiar" pattern
-- **🏆 Logros** — HP milestones (top) + stat achievement bars (bottom)
+The app has **four separate overlays**, each with its own `<div class="settings-ov">` in the HTML:
+
+- **`settingsOv`** — 3-tab settings card:
+  - **🔊 Voz** — TTS voice picker; male/female; test button
+  - **🧠 Modelo** — per-provider model selector (reads `R.provider`)
+  - **🔑 Cuenta** — API key management; green-dot indicator; instant validation (`validateProviderKey`); hidden-input "Cambiar" pattern
+- **`achievementsOv`** — HP milestones (top) + stat achievement bars (bottom); opened via header trophy icon
+- **`gamesOv`** — 3-tab minigames card: Dictado / Traducción / Orden
+- **`fcOv`** — flashcard overlay
+
+## Minigames
+
+Three games, each in its own file. All share engine state from `games.js`:
+
+| Game | File | How checked |
+|------|------|-------------|
+| Dictation | `game-dictation.js` | Sync word-diff (`normWords`) |
+| Translation | `game-translation.js` | Async LLM verdict |
+| Word order | `game-order.js` | Sync word-position compare; requires SortableJS CDN |
+
+`round` and `game` objects are exported from `games.js` and mutated in place by all three game files. Each game imports `pushLevelOutcome` directly from `progress.js` — **do not route through `window`**.
 
 ## Auth / credentials
 
@@ -154,30 +179,41 @@ Valid effort values: `low`, `medium`, `high`, `xhigh`, `max` — passed as `outp
 - Storage: `window.storage` (artifact) checked first, then `localStorage`
 - Keys: `hp_v1` (state S), `hp_creds` (API keys)
 - Pruning on save: vocab ≤200, mistakes ≤60, grammar ≤80, hist ≤25/char, challenges/challengeDone pruned to 14 days
+- `kvSet` now propagates errors (no silent catch). `saveS` catches them and calls the `onSaveError` callback registered in `main.js` (shows a toast). To register: `import {onSaveError} from './state.js'` then `onSaveError(cb)`.
 
 ## Known issues
 
-- **Mobile layout** — 186px side panel cramps chat on narrow screens; no responsive breakpoint
-- **JSON reliability** — Gemini occasionally breaks strict JSON output; `try/catch` fallback handles it
-- **Voice input** — Chrome/Edge only (`webkitSpeechRecognition`); Safari/Firefox unsupported
-- **Audio autoplay** — blocked until splash button click; don't call audio before `enterApp()`
+- **Voice input** — Chrome/Edge only (`webkitSpeechRecognition`); Safari/Firefox unsupported (shows Spanish toast instead of alert)
 
 ## Fixed issues (pitfall reference)
 
 - **`S.musicOff` not restored on reload** — `if(d.field)` silently skips `false`. Boolean state must use `if(d.field!==undefined)S.field=d.field`. Fixed in `state.js` `loadS()`.
 - **Challenge-achievement counter decaying** — `achievementMetrics().challenges` was counting `S.challengeDone` (pruned to 14 days), making the progress bar slide back. Fixed with persistent `S.challengesCompleted` counter in `state.js`/`chat.js`.
 - **Case-sensitive vocab dedup** — `sendMsg` used `===` while `addVocabWord` used `toLowerCase`. Unified in `vocabExists()` in `sidepanel.js`, imported by `chat.js`.
-- **Anthropic `thinking` param wrong shape** — `{type:'enabled',effort}` returns 400 on Opus 4.8. Correct: use `output_config:{effort}` at request top level (no `thinking` field needed for adaptive thinking).
+- **Anthropic `thinking` param wrong shape** — `{type:'enabled',effort}` returns 400 on Opus 4.8. Correct: use `output_config:{effort}` at request top level.
+- **`extractJSON` array branch dead** — object branch (`{`) ran first for array-of-objects responses (daily challenges), slicing from `{` to `}` and dropping the `[]` wrapper. Fixed: check which delimiter appears first; array wins if `[` comes before `{`. Also strips trailing commas before parsing.
+- **No fetch timeout** — hung TCP connection kept `R.loading=true` forever, locking the send button. Fixed: `fetchWithTimeout` (30s `AbortController`) in `llm.js`; `AbortError` is non-retryable.
+- **Autologin audio silent** — `tryAudio()` called with no user gesture → `AudioContext` suspended → `play()` rejected silently. Fixed: `playCurrent()` registers a one-time `pointerdown`/`keydown` retry on rejection; `startDroneSynth` defers via same pattern.
+- **Silent `saveS` failures** — `kvSet` swallowed all errors; quota exceeded caused silent data loss. Fixed: `kvSet` propagates errors; `saveS` catches and calls `onSaveError` callback (wired to a toast in `main.js`).
+- **`esc()` didn't escape quotes** — `"` in vocab words could break `value="..."` attributes (self-XSS path to API key theft). Fixed: `esc()` now escapes `"` → `&quot;`.
+- **`window.pushLevelOutcome` global** — game files read `pushLevelOutcome` via `window` (set by a dynamic import in `main.js`). Fixed: each game file imports `pushLevelOutcome` directly from `progress.js`.
+- **`window.dictSentence` global** — dictation speak buttons used `onclick="speak(dictSentence)"` with a `window` variable. Fixed: buttons now use `data-txt`/`data-rate` attributes with `speakFromBtn(this)`.
+- **Translation game race** — skip/hint buttons stayed active during async `checkTranslation` LLM call; rapid skip could corrupt scoring. Fixed: all `.vadd-row` buttons disabled at check start, re-enabled on error.
+- **Sortable CDN silent failure** — if `cdn.jsdelivr.net` unavailable, `new Sortable(...)` threw uncaught in `setTimeout`. Fixed: `initSortable` guards `typeof Sortable==='undefined'` and shows an error message.
+- **English `alert()` for mic** — unsupported-browser message was in English. Fixed: uses Spanish `showToast` instead.
+- **Mobile layout** — 186px side panel cramped chat on narrow screens. Fixed (D1): responsive drawer with scrim; `#sideBtn` shows on mobile only.
+- **TTS always-on** — speech fired on every message with no mute toggle. Fixed: `S.ttsOff` flag + "Leer respuestas en voz alta" checkbox in the Voz settings tab (`settings.js` `setTtsOff`).
 
 ## Common pitfalls
 
 - **Boolean state in loadS()** — use `!==undefined` check, not truthiness
 - **New `onclick` in HTML** — must add matching `window.X = fn` in `js/main.js`'s `Object.assign` block
-- **Circular imports** — `state.js` and `helpers.js` are the only leaf modules; keep them dependency-free
+- **Circular imports** — `state.js`, `helpers.js`, and `storage.js` are leaf modules; keep them dependency-free. `games.js` ↔ `game-*.js` is a live-binding mutual import that works but is fragile — never use `games.js` exports at the top level of a `game-*.js` file.
 - **API history cap** — `sendMsg()` slices to `.slice(-25)` before every call; don't add extra slicing
 - **Gemini message format** — role is `'model'` not `'assistant'`; handled in `callGeminiModel` in `llm.js`
 - **`window.storage` in artifacts** — must be checked first in all storage reads/writes; already handled by `storage.js` `kvGet`/`kvSet`
 - **`R.loading`** — set in `chat.js` `sendMsg()`; guards against double-submit; do not reset elsewhere
+- **`speakFromBtn` rate** — `tts.js` `speakFromBtn` reads `btn.dataset.rate` (optional float). Use `data-rate="0.55"` on slow-speak buttons instead of inline `speak(x, 0.55)` calls.
 
 ## Deploy
 

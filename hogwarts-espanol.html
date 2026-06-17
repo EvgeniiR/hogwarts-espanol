@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <link rel="stylesheet" href="css/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 </head>
 <body>
 <div class="wrap" id="app">
@@ -54,6 +55,7 @@
     <div class="settings-tabs">
       <button class="settings-tab active" data-tab="dictation" onclick="setGameTab('dictation')">🎧 Dictado</button>
       <button class="settings-tab" data-tab="translation" onclick="setGameTab('translation')">✍️ Traducción</button>
+      <button class="settings-tab" data-tab="order" onclick="setGameTab('order')">📰 Orden</button>
     </div>
     <div id="gamesContent"></div>
   </div>
@@ -72,7 +74,7 @@
   <div class="sp-sub">Practica español con tus personajes favoritos.<br>Tu progreso se guarda automáticamente.</div>
   <div class="sp-key">
     <div style="margin-bottom:8px;color:#6878a8;">Elige tu proveedor de AI</div>
-    <div style="display:flex;gap:8px;justify-content:center;margin-bottom:10px;">
+    <div class="sp-pvd-row" style="display:flex;gap:8px;justify-content:center;margin-bottom:10px;">
       <button onclick="setProvider('groq')" id="pvd_groq" style="padding:5px 14px;border-radius:4px;border:1px solid var(--bd);background:var(--bg2);color:var(--mt);cursor:pointer;font-family:Cinzel,Georgia,serif;font-size:11px;">Groq ✦ free</button>
       <button onclick="setProvider('gemini')" id="pvd_gemini" style="padding:5px 14px;border-radius:4px;border:1px solid var(--bd);background:var(--bg2);color:var(--mt);cursor:pointer;font-family:Cinzel,Georgia,serif;font-size:11px;">Google Gemini ✦ free</button>
       <button onclick="setProvider('anthropic')" id="pvd_anthropic" style="padding:5px 14px;border-radius:4px;border:1px solid var(--bd);background:var(--bg2);color:var(--mt);cursor:pointer;font-family:Cinzel,Georgia,serif;font-size:11px;">Anthropic</button>
@@ -109,6 +111,7 @@
       <button class="abtn" onclick="openGames()" aria-label="Minijuegos" title="Minijuegos"><i class="ti ti-target-arrow"></i></button>
       <button class="abtn" onclick="openAchievements()" aria-label="Logros" title="Logros"><i class="ti ti-trophy"></i></button>
       <button class="abtn" onclick="openSettings()" aria-label="Ajustes" title="Ajustes"><i class="ti ti-settings"></i></button>
+      <button class="abtn" id="sideBtn" onclick="toggleSide()" aria-label="Panel lateral" title="Panel lateral"><i class="ti ti-layout-sidebar-right"></i></button>
     </div>
   </div>
 
@@ -150,7 +153,7 @@
       </div>
     </div>
 
-    <div class="side">
+    <div class="side" id="sidePanel">
       <div class="ss">
         <div class="stitle">⚗ Puntos semanales</div>
         <div class="hg"><div class="hg-f" id="hgF" style="width:0%"></div></div>
@@ -163,6 +166,7 @@
       </div>
       <div class="scon" id="scon"></div>
     </div>
+    <div class="side-scrim" onclick="toggleSide()"></div>
   </div>
 </div>
 </div>

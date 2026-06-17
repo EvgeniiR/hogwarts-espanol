@@ -3,7 +3,7 @@
 
 export function esc(s){
   if(!s)return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\n/g,'<br>');
 }
 
 export function aResize(el){
@@ -42,11 +42,23 @@ export function shuffleArray(arr){
 // Week start (Monday 00:00) as epoch ms — shared by side panel + state.
 export function extractJSON(raw){
   const s=raw.replace(/```json|```/g,'').trim();
-  const oStart=s.indexOf('{'),oEnd=s.lastIndexOf('}');
-  const aStart=s.indexOf('['),aEnd=s.lastIndexOf(']');
-  if(oStart!==-1&&oEnd>oStart)return JSON.parse(s.slice(oStart,oEnd+1));
-  if(aStart!==-1&&aEnd>aStart)return JSON.parse(s.slice(aStart,aEnd+1));
+  // Strip trailing commas (common Gemini JSON breakage: ,} or ,])
+  const clean=s.replace(/,(\s*[}\]])/g,'$1');
+  const oStart=clean.indexOf('{'),oEnd=clean.lastIndexOf('}');
+  const aStart=clean.indexOf('['),aEnd=clean.lastIndexOf(']');
+  const hasObj=oStart!==-1&&oEnd>oStart;
+  const hasArr=aStart!==-1&&aEnd>aStart;
+  // Parse whichever delimiter appears first so array-of-objects responses
+  // (e.g. daily challenges) aren't consumed by the object branch.
+  if(hasArr&&(!hasObj||aStart<oStart))return JSON.parse(clean.slice(aStart,aEnd+1));
+  if(hasObj)return JSON.parse(clean.slice(oStart,oEnd+1));
   throw new Error('no JSON found in response');
+}
+
+export function mdInline(escaped){
+  return escaped
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g,'$1<em>$2</em>');
 }
 
 export function weekStart(ts){

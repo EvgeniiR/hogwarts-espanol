@@ -12,8 +12,15 @@ function throwIfBad(res,data){
 }
 
 function isRetryable(err){
+  if(err?.name==='AbortError')return false; // request timed out — don't retry
   const status=err&&err.status;
   return status!==401&&status!==403; // don't retry on invalid/unauthorized key
+}
+
+function fetchWithTimeout(url,opts,ms=30000){
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),ms);
+  return fetch(url,{...opts,signal:ctrl.signal}).finally(()=>clearTimeout(timer));
 }
 
 export async function callLLM(systemPrompt, messages, maxTokens, effort){
@@ -48,7 +55,7 @@ async function callAnthropic(systemPrompt, messages, maxTokens, effort){
   // effort}` shape returns 400 on Opus 4.8 (manual thinking unsupported).
   // Haiku does not support the effort parameter, so skip it there.
   if(effort&&!/haiku/.test(model))body.output_config={effort};
-  const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers,body:JSON.stringify(body)});
+  const res=await fetchWithTimeout('https://api.anthropic.com/v1/messages',{method:'POST',headers,body:JSON.stringify(body)});
   const data=await res.json();
   throwIfBad(res,data);
   return data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
@@ -61,8 +68,8 @@ async function callGeminiModel(systemPrompt, messages, maxTokens, model){
   }));
   const body={contents,generationConfig:{maxOutputTokens:maxTokens}};
   if(systemPrompt)body.systemInstruction={parts:[{text:systemPrompt}]};
-  const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${R.keys.gemini}`,{
-    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)
+  const res=await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{
+    method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':R.keys.gemini},body:JSON.stringify(body)
   });
   const data=await res.json();
   throwIfBad(res,data);
@@ -92,7 +99,7 @@ async function callGroq(systemPrompt, messages, maxTokens){
   const msgs=[];
   if(systemPrompt)msgs.push({role:'system',content:systemPrompt});
   msgs.push(...messages);
-  const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+  const res=await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':`Bearer ${R.keys.groq}`},
     body:JSON.stringify({model:S.modelPrefs.groq||'llama-3.3-70b-versatile',messages:msgs,max_tokens:maxTokens})

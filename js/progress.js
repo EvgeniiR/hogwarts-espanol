@@ -6,9 +6,17 @@ import { LEVELS } from './characters.js';
 import { showToast } from './helpers.js';
 
 // ── Points ───────────────────────────────────────────────────────────────
+function showPtsFloat(n){
+  const bar=document.getElementById('hgF');if(!bar)return;
+  const ss=bar.parentElement.parentElement;
+  const el=document.createElement('div');
+  el.className='pts-float';el.textContent='+'+n;
+  ss.appendChild(el);
+  setTimeout(()=>el.remove(),1200);
+}
 export function awardPoints(n){
   S.weeklyPts=Math.max(0,Math.min(200,S.weeklyPts+n));
-  if(n>0){S.lifetimePts=(S.lifetimePts||0)+n;S.dailyEarned+=n;}
+  if(n>0){S.lifetimePts=(S.lifetimePts||0)+n;S.dailyEarned+=n;showPtsFloat(n);}
   updPtsUI();checkAchievements();checkLifetimeMilestones();
 }
 export function updPtsUI(){
@@ -58,10 +66,10 @@ export function processDateChanges(){
 
 // ── Achievements ────────────────────────────────────────────────────────────
 export const ACH_LABELS={
-  streak:{icon:'🔥',name:'días de racha'},
-  msgs:{icon:'💬',name:'mensajes enviados'},
-  vocab:{icon:'📖',name:'palabras aprendidas'},
-  challenges:{icon:'⭐',name:'desafíos completados'},
+  streak:{icon:'🔥',name:'días de racha',name1:'día de racha'},
+  msgs:{icon:'💬',name:'mensajes enviados',name1:'mensaje enviado'},
+  vocab:{icon:'📖',name:'palabras aprendidas',name1:'palabra aprendida'},
+  challenges:{icon:'⭐',name:'desafíos completados',name1:'desafío completado'},
 };
 export const ACH_X={streak:10,vocab:10,challenges:10,msgs:100};
 export const HP_MILESTONES=[
@@ -107,8 +115,9 @@ export function checkAchievements(){
     let next=nextMilestone(reached,ACH_X[k]);
     while(next<=metrics[k]){
       reached=next;next=nextMilestone(reached,ACH_X[k]);
-      const {icon,name}=ACH_LABELS[k];
-      showToast(`🏆 ¡Logro desbloqueado! ${icon} ${reached} ${name}`,'#5a3000','#f5e5c0');
+      const {icon,name,name1}=ACH_LABELS[k];
+      const label=reached===1?name1:name;
+      showToast(`🏆 ¡Logro desbloqueado! ${icon} ${reached} ${label}`,'#5a3000','#f5e5c0');
       any=true;
     }
     S.achievements[k]=reached;

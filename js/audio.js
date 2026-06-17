@@ -38,19 +38,21 @@ export function syncAudioBtn(){if(S.musicOff)setBtn(true);}
 export async function tryAudio(){
   try{actx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}
   let files=AUDIO_FILES;
+  let manifestOk=false;
   try{
     const res=await fetch('audio/manifest.json');
     if(res.ok){
       const names=await res.json();
-      if(Array.isArray(names)&&names.length)files=names.map(n=>'audio/'+n);
+      if(Array.isArray(names)&&names.length){files=names.map(n=>'audio/'+n);manifestOk=true;}
     }
   }catch(e){}
   validAudioFiles=[];
-  let probed=0;
   if(!files.length){if(!S.musicOff){startDroneSynth();audioOn=true;}return;}
+  if(manifestOk){validAudioFiles=files;startPlaylist();return;}
+  let probed=0;
   files.forEach(f=>{
     const a=new Audio();
-    a.addEventListener('canplaythrough',()=>{validAudioFiles.push(f);probed++;if(probed===files.length)startPlaylist();},{once:true});
+    a.addEventListener('canplay',()=>{validAudioFiles.push(f);probed++;if(probed===files.length)startPlaylist();},{once:true});
     a.addEventListener('error',()=>{probed++;if(probed===files.length)startPlaylist();},{once:true});
     a.src=f;
   });
@@ -67,11 +69,21 @@ function startPlaylist(){
 function playCurrent(){
   if(validAudioFiles.length===0)return;
   if(ambientAudio){ambientAudio.pause();ambientAudio=null;}
+  if(S.musicOff){setBtn(true);return;}
   ambientAudio=new Audio(validAudioFiles[audioIdx]);
   ambientAudio.volume=0.25;
   ambientAudio.onended=()=>{audioIdx=(audioIdx+1)%validAudioFiles.length;playCurrent();};
-  if(S.musicOff){setBtn(true);return;}
-  ambientAudio.play().then(()=>{audioOn=true;}).catch(()=>{});
+  ambientAudio.play().then(()=>{audioOn=true;}).catch(()=>{
+    // Autoplay blocked (common on autologin with no prior gesture).
+    // Retry on the next user interaction — covers both the autologin path
+    // and browsers that require a click before any audio.
+    const retry=()=>{
+      if(actx&&actx.state==='suspended')actx.resume();
+      if(!S.musicOff)ambientAudio?.play().then(()=>{audioOn=true;setBtn(false);}).catch(()=>{});
+    };
+    document.addEventListener('pointerdown',retry,{once:true});
+    document.addEventListener('keydown',retry,{once:true});
+  });
 }
 
 export function skipSong(){
@@ -81,7 +93,14 @@ export function skipSong(){
 }
 
 function startDroneSynth(){
-  if(!actx)return;stopDrone();
+  if(!actx)return;
+  if(actx.state==='suspended'){
+    const resume=()=>{actx.resume().then(()=>startDroneSynth());};
+    document.addEventListener('pointerdown',resume,{once:true});
+    document.addEventListener('keydown',resume,{once:true});
+    return;
+  }
+  stopDrone();
   const notes=[130.81,164.81,196];
   drone=notes.map(f=>{
     const o=actx.createOscillator();const g=actx.createGain();

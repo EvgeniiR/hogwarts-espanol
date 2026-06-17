@@ -8,14 +8,21 @@ import { callLLM } from './llm.js';
 import { awardPoints, updPtsUI, updStreakUI, checkAchievements, checkLevelUp, pushLevelOutcome } from './progress.js';
 import { playRecv, playSend, playVocab, playSpell } from './audio.js';
 import { speak } from './tts.js';
-import { esc, showToast, friendlyError, extractJSON } from './helpers.js';
+import { esc, mdInline, showToast, friendlyError, extractJSON } from './helpers.js';
 import { renderChallengeUI, genDailyChallenges } from './challenges.js';
 import { renderSide, vocabExists } from './sidepanel.js';
 
+const MOOD_LABELS=['Enfadado/a','De mal humor','Neutral','Contento/a','Encantado/a'];
 export function updMood(k,v){
   v=Math.max(0,Math.min(4,v));S.moods[k]=v;
   const dot=document.getElementById('m_'+k);
-  if(dot)dot.style.background=['#d04040','#c08020','#c9a84c','#4aa020','#20d060'][v];
+  if(dot){
+    dot.style.background=['#d04040','#c08020','#c9a84c','#4aa020','#20d060'][v];
+    dot.title=MOOD_LABELS[v];
+    dot.classList.remove('mood-pulse');
+    void dot.offsetWidth;
+    dot.classList.add('mood-pulse');
+  }
 }
 
 export function updHeaderAll(){
@@ -40,6 +47,33 @@ export function showTyping(){
 export function rmTyping(){const t=document.getElementById('typi');if(t)t.remove();}
 
 // ── Message render ────────────────────────────────────────────────────────────
+function createMsgEl(m,i,charKey){
+  const div=document.createElement('div');
+  if(m.role==='user'){
+    div.className='msg u';
+    div.innerHTML=`<div class="mav" style="background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--mt);">Tú</div><div class="bbl">${esc(m.content)}</div>`;
+  }else{
+    const ch=chars[charKey];div.className='msg a';
+    const note=m.note?`<span class="note">${esc(m.note)}</span>`:'';
+    const safe=(m.display||'').replace(/"/g,'&quot;');
+    div.innerHTML=`<div class="mav" style="border-color:${ch.ac};">${SVG[charKey]}</div><div class="bbl" id="b${i}">${mdInline(esc(m.display))}<button class="spk-btn" data-txt="${safe}" onclick="speakFromBtn(this)" aria-label="Escuchar"><i class="ti ti-volume" aria-hidden="true"></i></button>${note}</div>`;
+    if(m.hasSpell){
+      m.hasSpell=false;
+      setTimeout(()=>{const b=document.getElementById('b'+i);if(b){b.classList.add('spell-flash');playSpell();}},120);
+    }
+  }
+  return div;
+}
+
+export function appendMsg(m){
+  const c=document.getElementById('msgs');
+  const empty=c.querySelector('.empty-ch');
+  if(empty)c.innerHTML='';
+  const i=S.hist[R.cur].length-1;
+  c.appendChild(createMsgEl(m,i,R.cur));
+  c.scrollTop=c.scrollHeight;
+}
+
 export function renderMsgs(){
   const msgs=S.hist[R.cur];const c=document.getElementById('msgs');
   if(!msgs.length){
@@ -48,23 +82,7 @@ export function renderMsgs(){
     return;
   }
   c.innerHTML='';
-  msgs.forEach((m,i)=>{
-    const div=document.createElement('div');
-    if(m.role==='user'){
-      div.className='msg u';
-      div.innerHTML=`<div class="mav" style="background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--mt);">Tú</div><div class="bbl">${esc(m.content)}</div>`;
-    }else{
-      const ch=chars[R.cur];div.className='msg a';
-      const note=m.note?`<span class="note">${esc(m.note)}</span>`:'';
-      const safe=(m.display||'').replace(/"/g,'&quot;');
-      div.innerHTML=`<div class="mav" style="border-color:${ch.ac};">${SVG[R.cur]}</div><div class="bbl" id="b${i}">${esc(m.display)}<button class="spk-btn" data-txt="${safe}" onclick="speakFromBtn(this)" aria-label="Escuchar"><i class="ti ti-volume" aria-hidden="true"></i></button>${note}</div>`;
-      if(m.hasSpell){
-        m.hasSpell=false;
-        setTimeout(()=>{const b=document.getElementById('b'+i);if(b){b.classList.add('spell-flash');playSpell();}},120);
-      }
-    }
-    c.appendChild(div);
-  });
+  msgs.forEach((m,i)=>c.appendChild(createMsgEl(m,i,R.cur)));
   c.scrollTop=c.scrollHeight;
 }
 
@@ -87,7 +105,6 @@ export function selChar(tab){
   renderMsgs();renderHints([]);renderSide();
   document.getElementById('sendB').disabled=false;document.getElementById('ui').focus();
   genDailyChallenges();
-  genStarter(R.cur);
 }
 export function selCharByName(n){const t=document.querySelector(`[data-ch="${n}"]`);if(t)selChar(t);}
 
@@ -107,9 +124,11 @@ export async function genStarter(k){
       if(p.note)S.grammar.push({ch:k,text:p.note,ts:Date.now()});
       if(typeof p.mood==='number')updMood(k,p.mood);
       saveS();
-      if(k===R.cur){rmTyping();renderMsgs();renderSide();}
+      if(k===R.cur){rmTyping();appendMsg(S.hist[k].at(-1));renderSide();}
     }else{if(k===R.cur)rmTyping();}
-  }catch(e){if(k===R.cur)rmTyping();}
+  }catch(e){
+    if(k===R.cur){rmTyping();showToast(friendlyError(e),'#5a0000','#f5e5c0');}
+  }
   starterLoading.delete(k);
 }
 
@@ -118,10 +137,12 @@ export async function sendMsg(){
   if(R.loading)return;
   const ta=document.getElementById('ui');const txt=ta.value.trim();if(!txt)return;
   S.hist[R.cur].push({role:'user',content:txt});ta.value='';ta.style.height='auto';
-  document.getElementById('sendB').disabled=true;R.loading=true;renderMsgs();showTyping();playSend();
+  document.getElementById('sendB').disabled=true;R.loading=true;appendMsg(S.hist[R.cur].at(-1));showTyping();playSend();
   const effort=txt.trim().split(/\s+/).length>=8?'max':'high';
   try{
-    let msgs=S.hist[R.cur].slice(-25).map(m=>({role:m.role,content:m.content}));
+    let hist=S.hist[R.cur].filter(m=>!m.error);
+    let msgs=hist.slice(-25).map(m=>({role:m.role,content:m.content}));
+    msgs=msgs.filter((m,i)=>i===msgs.length-1||m.role!==msgs[i+1].role);
     const firstUser=msgs.findIndex(m=>m.role==='user');if(firstUser>0)msgs=msgs.slice(firstUser);
     const raw=await callLLM(getSys(R.cur),msgs,1000,effort);
     let p;try{p=extractJSON(raw);}catch(e){p={reply:raw.replace(/\{.*\}/s,'').trim()||raw,note:'',vocab:[],mistakes:[],spells:[],points:0,mood:2};}
@@ -148,9 +169,9 @@ export async function sendMsg(){
     if(checkLevelUp())saveS();
     if(changed)renderSide();
     checkAchievements();
-    playRecv();setTimeout(()=>speak(p.reply),350);
+    playRecv();if(!S.ttsOff)setTimeout(()=>speak(p.reply),350);
     saveS();
-  }catch(e){const msg=friendlyError(e);S.hist[R.cur].push({role:'assistant',content:msg,display:msg,note:'',hasSpell:false});}
-  rmTyping();R.loading=false;document.getElementById('sendB').disabled=false;renderMsgs();document.getElementById('ui').focus();
+  }catch(e){const msg=friendlyError(e);S.hist[R.cur].push({role:'assistant',content:msg,display:msg,note:'',hasSpell:false,error:true});}
+  rmTyping();R.loading=false;document.getElementById('sendB').disabled=false;appendMsg(S.hist[R.cur].at(-1));document.getElementById('ui').focus();
 }
 
