@@ -1,0 +1,8 @@
+# IDE
+.idea/
+
+# Cloudflare Wrangler
+.wrangler/
+
+# Audio assets (large binaries, served externally)
+audio/*.mp3
