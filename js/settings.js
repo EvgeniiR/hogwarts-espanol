@@ -148,6 +148,6 @@ export async function saveAuthFromSettings(){
   renderSettings();
 }
 export async function clearAuthFromSettings(){
-  for(const p of ['groq','gemini','anthropic'])await clearCreds(p);
+  await clearCreds(R.provider);
   location.reload();
 }

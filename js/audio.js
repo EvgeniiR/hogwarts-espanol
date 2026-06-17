@@ -1,12 +1,16 @@
 // ── AUDIO ──────────────────────────────────────────────────────────────────
-// Ambient music playlist (discovered from audio/manifest.json at runtime),
-// a synth-drone fallback, and the short UI beeps. On/off state persists in
-// S.musicOff. All audio internals are private to this module.
+// Ambient music with reliable mute/unmute and autoplay.
+// - Loads playlist from manifest.json (fallback hardcoded)
+// - Shuffles on first load
+// - Respects S.musicOff (persisted)
+// - Starts on first user interaction (pointer/key)
+// - Mute/Unmute toggle pauses/resumes the current track without reloading.
+
 import { S, saveS } from './state.js';
 import { shuffleArray } from './helpers.js';
 
-// Hardcoded fallback list for when manifest.json can't be fetched (file://).
-const AUDIO_FILES = [
+// ── Fallback list ──────────────────────────────────────────────────────────
+const FALLBACK_FILES = [
   "audio/A Fool's Theme - Brian Bolger.mp3",
   "audio/Aaron Kenny - English Country Garden (Happy).mp3",
   "audio/Aaron Kenny - Happy Haunts (Happy).mp3",
@@ -24,112 +28,199 @@ const AUDIO_FILES = [
   "audio/The Two Seasons - Dan Bodan.mp3",
 ];
 
-let actx=null, audioOn=false, drone=null;
-let ambientAudio=null, audioIdx=-1, validAudioFiles=[];
+let actx = null;
+let _playlist = [];
+let _index = -1;
+let _audio = null;
+let _playing = false;
+let _ready = false;
+let _listenerAttached = false;
+let _starting = false;
+let _stopRequested = false;
 
-function setBtn(off){
-  const b=document.getElementById('aBtn');
-  if(b)b.innerHTML=off?'<i class="ti ti-volume-off"></i>':'<i class="ti ti-volume"></i>';
+function updateButtonUI(off) {
+  const btn = document.getElementById('aBtn');
+  if (btn) btn.innerHTML = off ? '<i class="ti ti-volume-off"></i>' : '<i class="ti ti-volume"></i>';
 }
-// Called synchronously on app entry so the icon matches saved state before
-// any async audio probing runs.
-export function syncAudioBtn(){if(S.musicOff)setBtn(true);}
 
-export async function tryAudio(){
-  try{actx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}
-  let files=AUDIO_FILES;
-  let manifestOk=false;
-  try{
-    const res=await fetch('audio/manifest.json');
-    if(res.ok){
-      const names=await res.json();
-      if(Array.isArray(names)&&names.length){files=names.map(n=>'audio/'+n);manifestOk=true;}
+function resumeContext() {
+  if (!actx) return Promise.resolve();
+  if (actx.state === 'suspended') return actx.resume();
+  return Promise.resolve();
+}
+
+async function loadPlaylist() {
+  if (_playlist.length) return;
+  let files = [];
+  try {
+    const res = await fetch('audio/manifest.json');
+    if (res.ok) {
+      const names = await res.json();
+      if (Array.isArray(names) && names.length) {
+        files = names.map(n => 'audio/' + n);
+      }
     }
-  }catch(e){}
-  validAudioFiles=[];
-  if(!files.length){if(!S.musicOff){startDroneSynth();audioOn=true;}return;}
-  if(manifestOk){validAudioFiles=files;startPlaylist();return;}
-  let probed=0;
-  files.forEach(f=>{
-    const a=new Audio();
-    a.addEventListener('canplay',()=>{validAudioFiles.push(f);probed++;if(probed===files.length)startPlaylist();},{once:true});
-    a.addEventListener('error',()=>{probed++;if(probed===files.length)startPlaylist();},{once:true});
-    a.src=f;
-  });
-  setTimeout(()=>{if(!ambientAudio&&validAudioFiles.length===0&&!S.musicOff){startDroneSynth();audioOn=true;}},2000);
+  } catch (_) { /* ignore */ }
+  if (!files.length) files = FALLBACK_FILES;
+  _playlist = shuffleArray(files);
+  _index = 0;
+  _ready = true;
 }
 
-function startPlaylist(){
-  if(validAudioFiles.length===0){if(!S.musicOff){startDroneSynth();audioOn=true;}return;}
-  validAudioFiles=shuffleArray(validAudioFiles);
-  audioIdx=0;
-  playCurrent();
-}
-
-function playCurrent(){
-  if(validAudioFiles.length===0)return;
-  if(ambientAudio){ambientAudio.pause();ambientAudio=null;}
-  if(S.musicOff){setBtn(true);return;}
-  ambientAudio=new Audio(validAudioFiles[audioIdx]);
-  ambientAudio.volume=0.25;
-  ambientAudio.onended=()=>{audioIdx=(audioIdx+1)%validAudioFiles.length;playCurrent();};
-  ambientAudio.play().then(()=>{audioOn=true;}).catch(()=>{
-    // Autoplay blocked (common on autologin with no prior gesture).
-    // Retry on the next user interaction — covers both the autologin path
-    // and browsers that require a click before any audio.
-    const retry=()=>{
-      if(actx&&actx.state==='suspended')actx.resume();
-      if(!S.musicOff)ambientAudio?.play().then(()=>{audioOn=true;setBtn(false);}).catch(()=>{});
-    };
-    document.addEventListener('pointerdown',retry,{once:true});
-    document.addEventListener('keydown',retry,{once:true});
-  });
-}
-
-export function skipSong(){
-  if(validAudioFiles.length<=1)return;
-  audioIdx=(audioIdx+1)%validAudioFiles.length;
-  playCurrent();
-}
-
-function startDroneSynth(){
-  if(!actx)return;
-  if(actx.state==='suspended'){
-    const resume=()=>{actx.resume().then(()=>startDroneSynth());};
-    document.addEventListener('pointerdown',resume,{once:true});
-    document.addEventListener('keydown',resume,{once:true});
+function playTrack() {
+  if (S.musicOff) {
+    stopPlayback();
     return;
   }
-  stopDrone();
-  const notes=[130.81,164.81,196];
-  drone=notes.map(f=>{
-    const o=actx.createOscillator();const g=actx.createGain();
-    o.type='sine';o.frequency.value=f;g.gain.value=.012;
-    o.connect(g);g.connect(actx.destination);o.start();
-    return{o,g};
-  });
-}
-function stopDrone(){if(drone){drone.forEach(n=>{try{n.o.stop();}catch(e){}});drone=null;}}
+  if (!_ready || _playlist.length === 0) return;
+  if (_starting) return;
 
-export function toggleAudio(){
-  if(audioOn){
-    if(ambientAudio){ambientAudio.pause();}else{stopDrone();}
-    audioOn=false;setBtn(true);
-  }else{
-    if(ambientAudio){ambientAudio.play().catch(()=>{});}else if(actx){startDroneSynth();}
-    audioOn=true;setBtn(false);
+  if (_audio) {
+    _audio.pause();
+    _audio = null;
   }
-  S.musicOff=!audioOn;saveS();
+  _playing = false;
+  _starting = true;
+  _stopRequested = false;
+
+  const src = _playlist[_index];
+  const audio = new Audio(src);
+  audio.volume = 0.25;
+
+  audio.onended = () => {
+    if (_playing && !_stopRequested) {
+      _index = (_index + 1) % _playlist.length;
+      _starting = false;
+      playTrack();
+    }
+  };
+
+  audio.play()
+      .then(() => {
+        _starting = false;
+        if (_stopRequested) {
+          audio.pause();
+          _audio = null;
+          _playing = false;
+          updateButtonUI(true);
+          return;
+        }
+        _audio = audio;
+        _playing = true;
+        updateButtonUI(false);
+      })
+      .catch(() => {
+        _starting = false;
+        _playing = false;
+      });
 }
 
-// ── UI beeps (no-op when audio is muted or context unavailable) ──────────────
-function beep(f,t,v,d,delay){
-  if(!actx||!audioOn)return;
-  const o=actx.createOscillator();const g=actx.createGain();
-  o.type=t;o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(actx.destination);
-  const s=actx.currentTime+(delay||0);o.start(s);g.gain.exponentialRampToValueAtTime(.001,s+d);o.stop(s+d);
+function stopPlayback() {
+  _stopRequested = true;
+  _starting = false;
+  if (_audio) {
+    _audio.pause();
+    _audio = null;
+  }
+  _playing = false;
+  updateButtonUI(true);
 }
-export function playSend(){beep(600,'triangle',.1,.15);}
-export function playRecv(){[500,660,820].forEach((f,i)=>beep(f,'sine',.08,.22,i*.075));}
-export function playVocab(){beep(880,'sine',.07,.28);}
-export function playSpell(){[400,600,900,1200,1600].forEach((f,i)=>beep(f,'triangle',.06,.25,i*.06));}
+
+async function ensurePlayback() {
+  if (S.musicOff) {
+    if (_playing) stopPlayback();
+    return;
+  }
+  if (_playing) return;
+
+  if (!_ready) {
+    await loadPlaylist();
+    if (_playlist.length === 0) return;
+  }
+
+  await resumeContext();
+
+  if (!_playing && !_starting) {
+    playTrack();
+  }
+}
+
+function attachGlobalListener() {
+  if (_listenerAttached) return;
+  _listenerAttached = true;
+  const handler = () => { ensurePlayback().catch(() => {}); };
+  document.addEventListener('pointerdown', handler);
+  document.addEventListener('keydown', handler);
+}
+
+export function tryPlayNow() {
+  if (!actx) {
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {}
+  }
+  attachGlobalListener();
+  ensurePlayback().catch(() => {});
+}
+
+export async function tryAudio() {
+  if (!_ready) await loadPlaylist();
+  attachGlobalListener();
+  await ensurePlayback();
+}
+
+export function toggleAudio() {
+  if (_playing || _audio) {
+    stopPlayback();
+    S.musicOff = true;
+  } else {
+    S.musicOff = false;
+    ensurePlayback().catch(() => {});
+  }
+  saveS();
+}
+
+export function skipSong() {
+  if (!_ready || _playlist.length <= 1) return;
+  _index = (_index + 1) % _playlist.length;
+  if (_playing) {
+    stopPlayback();
+    _stopRequested = false;
+    _starting = false;
+    playTrack();
+  } else {
+    if (!S.musicOff) {
+      ensurePlayback().catch(() => {});
+    }
+  }
+}
+
+export function stopMusic() {
+  stopPlayback();
+}
+
+export function syncAudioBtn() {
+  updateButtonUI(S.musicOff);
+}
+
+// ── UI Beeps ──────────────────────────────────────────────────────────────
+function beep(freq, type, vol, dur, delay = 0) {
+  if (!actx) return;
+  const osc = actx.createOscillator();
+  const gain = actx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.value = vol;
+  osc.connect(gain);
+  gain.connect(actx.destination);
+  const startTime = actx.currentTime + delay;
+  osc.start(startTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
+  osc.stop(startTime + dur);
+}
+
+export function playSend()     { beep(600, 'triangle', 0.1, 0.15); }
+export function playRecv()     { [500,660,820].forEach((f,i) => beep(f, 'sine', 0.08, 0.22, i*0.075)); }
+export function playVocab()    { beep(880, 'sine', 0.07, 0.28); }
+export function playSpell()    { [400,600,900,1200,1600].forEach((f,i) => beep(f, 'triangle', 0.06, 0.25, i*0.06)); }
+export function playCorrect()  { [523,659,784].forEach((f,i) => beep(f, 'sine', 0.08, 0.25, i*0.08)); }
+export function playMinor()    { beep(440, 'triangle', 0.08, 0.2); }
+export function playIncorrect(){ [400,350,300].forEach((f,i) => beep(f, 'sawtooth', 0.04, 0.3, i*0.12)); }

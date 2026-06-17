@@ -4,6 +4,7 @@ import { callLLM } from './llm.js';
 import { esc, friendlyError, normWords } from './helpers.js';
 import { awardPoints, pushLevelOutcome } from './progress.js';
 import { speak } from './tts.js';
+import { playCorrect, playMinor, playIncorrect } from './audio.js';
 import { renderSide } from './sidepanel.js';
 import { round, game, GAME_DIFF, randomTopic, rememberRecent, pickReviewItem, diffSelectorHtml, award, wordDiffHtml, wordMaskHint, recentDictSentences } from './game-core.js';
 
@@ -55,6 +56,7 @@ export function checkDictation(){
   round.checked=true;
   pushLevelOutcome(tier==='correct');
   const {diff,bonus}=award(tier);
+  if(tier==='correct')playCorrect();else if(tier==='minor')playMinor();else playIncorrect();
   if(tier!=='correct'){
     S.mistakes.push({wrong:input,right:round.sentence,note:'Dictado',ts:Date.now(),source:'dictado'});
     renderSide();

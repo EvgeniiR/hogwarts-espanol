@@ -7,6 +7,7 @@ import { callLLM } from './llm.js';
 import { esc, friendlyError } from './helpers.js';
 import { awardPoints, pushLevelOutcome } from './progress.js';
 import { renderSide } from './sidepanel.js';
+import { playCorrect, playMinor, playIncorrect } from './audio.js';
 import { round, game, GAME_DIFF, diffSelectorHtml, award } from './game-core.js';
 
 let sortableScrambled=null, sortableTarget=null;
@@ -121,6 +122,7 @@ export function checkOrder(){
   const tier=ratio===1?'correct':ratio>=0.7?'minor':'incorrect';
   pushLevelOutcome(tier==='correct');
   const {diff,bonus}=award(tier);
+  if(tier==='correct')playCorrect();else if(tier==='minor')playMinor();else playIncorrect();
   S.grammar.push({ch:R.cur,text:`Práctica de orden de palabras: "${correct.join(' ')}"`,ts:Date.now()});
   if(tier!=='correct'){
     S.mistakes.push({wrong:userWords.join(' '),right:correct.join(' '),note:`Orden de palabras (${diff.label})`,ts:Date.now(),source:'orden'});

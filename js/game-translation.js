@@ -4,6 +4,7 @@ import { callLLM } from './llm.js';
 import { esc, friendlyError, normWords, extractJSON } from './helpers.js';
 import { awardPoints, pushLevelOutcome } from './progress.js';
 import { renderSide } from './sidepanel.js';
+import { playCorrect, playMinor, playIncorrect } from './audio.js';
 import { round, game, GAME_DIFF, randomTopic, rememberRecent, pickReviewItem, diffSelectorHtml, award, wordDiffHtml, wordMaskHint, recentTranslPhrases } from './game-core.js';
 
 export async function genTranslation(){
@@ -70,6 +71,7 @@ export async function checkTranslation(btn){
   const tier=verdict.status;
   pushLevelOutcome(tier==='correct');
   const {diff,bonus}=award(tier);
+  if(tier==='correct')playCorrect();else if(tier==='minor')playMinor();else playIncorrect();
   if(tier!=='correct'){
     S.mistakes.push({wrong:input,right:verdict.correction,note:verdict.note||'Traducción',ts:Date.now(),source:'traduccion',phrase:round.phrase});
     renderSide();

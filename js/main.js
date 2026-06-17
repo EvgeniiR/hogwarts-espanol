@@ -7,7 +7,7 @@ import { S, R, loadS, saveS, onSaveError } from './state.js';
 import { LEVELS } from './characters.js';
 import { SVG } from './portraits.js';
 import { prefillCreds, setProvider, saveCreds, clearCreds, KEY_INPUT_ID } from './credentials.js';
-import { tryAudio, syncAudioBtn, toggleAudio, skipSong } from './audio.js';
+import { tryPlayNow, stopMusic, tryAudio, syncAudioBtn, toggleAudio, skipSong } from './audio.js';
 import { speak, speakFromBtn, setVoicePref, testVoice } from './tts.js';
 import { processDateChanges, updPtsUI, updStreakUI, awardPoints, pushLevelOutcome } from './progress.js';
 import { genDailyChallenges } from './challenges.js';
@@ -21,6 +21,7 @@ import { showToast, aResize } from './helpers.js';
 export function buildPortraits(){Object.keys(SVG).forEach(k=>{const el=document.getElementById('p_'+k);if(el)el.innerHTML=SVG[k];});}
 
 async function enterApp(skipValidation=false){
+  tryPlayNow();
   const keyVal=document.getElementById(KEY_INPUT_ID[R.provider]).value.trim();
   document.getElementById('splashKeyErr')?.remove();
   if(!skipValidation&&keyVal){
@@ -49,6 +50,8 @@ async function enterApp(skipValidation=false){
   else if(!remember)await clearCreds(R.provider);
   const btn=document.getElementById('splashBtn');btn.textContent='Cargando…';btn.disabled=true;
   await loadS();processDateChanges();
+  if(S.musicOff)stopMusic();
+  syncAudioBtn();
   document.getElementById('splash').remove();
   document.getElementById('mainApp').style.display='flex';
   buildPortraits();updHeaderAll();selCharByName('hermione');
@@ -57,8 +60,6 @@ async function enterApp(skipValidation=false){
   // Only R.cur (hermione) shows typing dots; others load silently in background.
   Object.keys(S.hist).forEach(k=>genStarter(k));
   setInterval(()=>{const t=new Date().toISOString().slice(0,10);if(S.lastActiveDate&&S.lastActiveDate!==t)processDateChanges();},60000);
-  // Sync audio icon to saved S.musicOff BEFORE tryAudio() fires asynchronously.
-  syncAudioBtn();
   tryAudio();
   await saveS();
 }

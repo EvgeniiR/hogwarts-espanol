@@ -21,16 +21,14 @@ Open http://localhost:8787/hogwarts-espanol.html
    ```
 2. Deploy:
    ```
-   upd --branch=main --commit-dirty=true
+   npx wrangler pages deploy . --project-name=hogwarts-espanol --branch=main
    ```
-   Run both commands from this project folder. The live URL updates within seconds — no other steps needed.
+   Run from this project folder. The live URL updates within seconds.
 
    **`--branch=main` is required.** The Cloudflare Pages *production* environment is
    mapped to the `main` branch, but the local git branch is `master`. Without
    `--branch=main`, wrangler infers the branch from git (`master`) and publishes a
-   *preview* deployment to `master.hogwarts-espanol.pages.dev` — the production domain
-   `hogwarts-espanol.pages.dev` is left untouched. `--commit-dirty=true` just silences
-   the uncommitted-changes warning.
+   *preview* deployment — the production domain is left untouched.
 
    Verify which branch is production with:
    ```
