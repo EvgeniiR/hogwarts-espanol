@@ -6,7 +6,7 @@
 import { S, R, loadS, saveS, onSaveError } from './state.js';
 import { LEVELS } from './characters.js';
 import { SVG } from './portraits.js';
-import { prefillCreds, setProvider, saveCreds, clearCreds, KEY_INPUT_ID } from './credentials.js';
+import { prefillCreds, setProvider, saveCreds, clearCreds, removeCreds, KEY_INPUT_ID, savedKeyIndicator, splashEditKey, splashDeleteKey } from './credentials.js';
 import { tryPlayNow, stopMusic, tryAudio, syncAudioBtn, toggleAudio, skipSong } from './audio.js';
 import { speak, speakFromBtn, setVoicePref, testVoice } from './tts.js';
 import { processDateChanges, updPtsUI, updStreakUI, awardPoints, pushLevelOutcome } from './progress.js';
@@ -14,7 +14,7 @@ import { genDailyChallenges } from './challenges.js';
 import { sendMsg, selChar, selCharByName, updHeaderAll, showHints, useHint, renderMsgs, genStarter } from './chat.js';
 import { renderSide, setSTab, navWeek, toggleVAdd, submitVAdd, editVocab, cancelEditVocab, saveEditVocab, deleteVocab, editMistake, cancelEditMistake, saveEditMistake, deleteMistake, openFc, closeFc, flipFc, navFc, handleSelUp, hideSelBtn, addSelectionToVocab } from './sidepanel.js';
 import { openGames, closeGames, setGameTab, setGameDifficulty, genDictation, genTranslation, hintDictation, checkDictation, skipDictation, hintTranslation, checkTranslation, skipTranslation, genOrderGame, checkOrder, hintOrder, skipOrder, genMemory, skipMemory, flipMemCard, cleanupMemory, setRandomMode, renderMemoryLobby } from './games.js';
-import { openSettings, closeSettings, setSettingsTab, renderSettings, setModelPref, setTtsOff, setAuthProvider, authKeyTyped, saveAuthFromSettings, clearAuthFromSettings, openAchievements, closeAchievements, renderAchievements, validateProviderKey } from './settings.js';
+import { openSettings, closeSettings, setSettingsTab, renderSettings, setModelPref, setTtsOff, openAchievements, closeAchievements, renderAchievements, validateProviderKey } from './settings.js';
 import { openErrExplain, closeErrExplain, askErrFollowUp, clickErrSuggestion } from './error-explain.js';
 import { showToast, aResize } from './helpers.js';
 
@@ -55,7 +55,7 @@ async function enterApp(skipValidation=false){
   await loadS();processDateChanges();
   if(S.musicOff)stopMusic();
   syncAudioBtn();
-  document.getElementById('splash').remove();
+  document.getElementById('splash').style.display='none';
   document.getElementById('mainApp').style.display='flex';
   buildPortraits();updHeaderAll();selCharByName('hermione');
   // Prefetch starters for all 4 characters in parallel at init.
@@ -65,6 +65,61 @@ async function enterApp(skipValidation=false){
   setInterval(()=>{const t=new Date().toISOString().slice(0,10);if(S.lastActiveDate&&S.lastActiveDate!==t)processDateChanges();},60000);
   tryAudio();
   await saveS();
+}
+
+// ── Splash auth management (shown from settings) ──────────────────────────
+function showSplashAuth(){
+  document.getElementById('splashKeyErr')?.remove();
+  document.getElementById('mainApp').style.display='none';
+  const splash=document.getElementById('splash');
+  splash.style.display='flex';
+  document.querySelector('.sp-key').style.display='';
+  document.getElementById('splashBackBtn').style.display='';
+  const btn=document.getElementById('splashBtn');
+  btn.textContent='Guardar';
+  btn.disabled=false;
+  btn.setAttribute('onclick','saveSplashAuth()');
+  // Pre-fill inputs and indicators for all providers.
+  ['groq','openai','anthropic','gemini'].forEach(p=>{
+    if(R.keys[p]){
+      const el=document.getElementById(KEY_INPUT_ID[p]);
+      if(el)el.value=R.keys[p];
+    }
+    savedKeyIndicator(p);
+  });
+  setProvider(R.provider);
+  document.getElementById('rememberKey').checked=!!(R.cachedCreds&&R.cachedCreds[R.provider]);
+}
+
+function hideSplashAuth(){
+  document.getElementById('splash').style.display='none';
+  document.getElementById('splashBackBtn').style.display='none';
+  const btn=document.getElementById('splashBtn');
+  btn.textContent='Accio Español →';
+  btn.setAttribute('onclick','enterApp()');
+  document.getElementById('mainApp').style.display='flex';
+}
+
+async function saveSplashAuth(){
+  try{
+    const keyVal=(document.getElementById(KEY_INPUT_ID[R.provider])?.value||'').trim();
+    if(keyVal){
+      R.keys[R.provider]=keyVal;
+      await saveCreds(R.provider,keyVal);
+    }
+    for(const p of ['groq','openai','anthropic','gemini']){
+      if(p===R.provider)continue;
+      const v=document.getElementById(KEY_INPUT_ID[p])?.value?.trim();
+      if(v){
+        R.keys[p]=v;
+        await saveCreds(p,v);
+      }
+    }
+    hideSplashAuth();
+    showToast('✓ Guardado','#2a5018','#7acc40');
+  }catch(e){
+    showToast('Error al guardar: '+e.message,'#5a0000','#f5e5c0');
+  }
 }
 
 // ── Bottom-of-page init ────────────────────────────────────────────────────
@@ -146,8 +201,9 @@ Object.assign(window,{
   openAchievements, closeAchievements,
   // Settings overlay
   openSettings, closeSettings, setSettingsTab, setModelPref, setTtsOff,
-  setAuthProvider, authKeyTyped, saveAuthFromSettings, clearAuthFromSettings,
   setVoicePref, testVoice,
+  // Auth / splash management
+  splashEditKey, splashDeleteKey, showSplashAuth, hideSplashAuth, saveSplashAuth,
   // Error explain overlay
   openErrExplain, closeErrExplain, askErrFollowUp, clickErrSuggestion,
   // Games overlay

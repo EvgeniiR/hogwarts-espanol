@@ -33,7 +33,7 @@ When editing a feature, load **only this file** — not the whole project.
 | Character definitions, system-prompt assembly (`buildSys`, `getSys`) | `js/characters.js` |
 | SVG portraits (static, rarely changes) | `js/portraits.js` |
 | LLM router: Anthropic / Gemini / Groq | `js/llm.js` |
-| API key persistence, provider selection | `js/credentials.js` |
+| API key persistence, provider selection, splash auth management (`splashEditKey`, `splashDeleteKey`, `removeCreds`, `savedKeyIndicator`) | `js/credentials.js` |
 | Ambient music (gapless two-element preload), instant mute/unmute, UI beeps | `js/audio.js` |
 | Text-to-speech (speak, speakFromBtn with rate, voice picker) | `js/tts.js` |
 | Points, streak, level, achievements, HP milestones | `js/progress.js` |
@@ -161,10 +161,10 @@ All three providers use `fetchWithTimeout` (30s) defined in `llm.js`. `AbortErro
 
 The app has **four separate overlays**, each with its own `<div class="settings-ov">` in the HTML:
 
-- **`settingsOv`** — 3-tab settings card:
+- **`settingsOv`** — 2-tab settings card + auth button:
   - **🔊 Voz** — TTS voice picker; male/female; test button
   - **🧠 Modelo** — per-provider model selector (reads `R.provider`)
-  - **🔑 Cuenta** — API key management; green-dot indicator; instant validation (`validateProviderKey`); hidden-input "Cambiar" pattern
+  - **🔑 Gestionar cuentas →** — opens splash overlay for full auth management (providers, keys, saved-key pattern with Cambiar/Eliminar)
 - **`achievementsOv`** — HP milestones (top) + stat achievement bars (bottom); opened via header trophy icon
 - **`gamesOv`** — 4-tab minigames card: Dictado / Traducción / Orden / Pensieve
 - **`fcOv`** — flashcard overlay
@@ -184,10 +184,16 @@ Four games, each in its own file. All share engine state from `game-core.js`:
 
 ## Auth / credentials
 
-- `hp_creds` stores `{groq, gemini, anthropic, last}` in storage
+- `hp_creds` stores `{groq, openai, anthropic, gemini, last}` in storage
 - `prefillCreds()` runs at page load; returns `true` if autologin; `main.js` hides `.sp-key` and changes the button to "Continuar →" (calls `enterApp(true)` on click)
 - All providers' keys are loaded into `R.keys` on autologin
 - Provider default: if saved last-provider has no key, falls back to Groq
+- **Splash is the auth hub**: provider selection, key input with saved-key pattern (✓ Guardada / Cambiar / Eliminar), and per-provider descriptions with "conseguir clave →" links
+- `showSplashAuth()` (from settings "Gestionar cuentas →" button) pre-fills saved keys and changes splash button to "Guardar"; `hideSplashAuth()` returns to app
+- Per-provider key deletion via `splashDeleteKey(p)` / `removeCreds(p)` — no reload needed
+- Provider order on splash: Groq → OpenAI → Anthropic → Gemini
+- Provider labels: Groq "✦ Gratis", OpenAI "★ Recomendado", Gemini "✦ Gratis"
+- `validateProviderKey()` in `settings.js` handles all 4 providers for splash key validation
 
 ## Persistence
 

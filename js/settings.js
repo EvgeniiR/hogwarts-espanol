@@ -1,13 +1,11 @@
 // ── SETTINGS OVERLAY ───────────────────────────────────────────────────────
-// Four tabs: Voice, Model, Auth/Cuenta, Logros.
+// Two tabs: Voice, Model. Auth management moved to splash (via "Gestionar cuentas" button).
 import { S, R, saveS } from './state.js';
-import { esc, showToast } from './helpers.js';
+import { esc } from './helpers.js';
 import { spanishVoices, setVoicePref, testVoice } from './tts.js';
-import { saveCreds, clearCreds } from './credentials.js';
 import { achievementMetrics, ACH_LABELS, ACH_X, HP_MILESTONES, nextMilestone } from './progress.js';
 
 let settingsTab='voice';
-let keyValidTimer=null;
 
 export function openSettings(){renderSettings();document.getElementById('settingsOv').style.display='flex';}
 export function closeSettings(){document.getElementById('settingsOv').style.display='none';}
@@ -54,30 +52,6 @@ export function renderSettings(){
       el.innerHTML=`<div class="svc-row"><div class="svc-lbl">Modelo de OpenAI</div>
         <select onchange="setModelPref('openai',this.value)">${models.map(([v,l])=>`<option value="${v}" ${S.modelPrefs.openai===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>`;
     }
-  }else if(settingsTab==='auth'){
-    const pvdKey={groq:R.keys.groq,gemini:R.keys.gemini,anthropic:R.keys.anthropic,openai:R.keys.openai};
-    const pvdLabel={groq:'Groq ✦ free',gemini:'Gemini ✦ free',anthropic:'Anthropic',openai:'OpenAI'};
-    const pvdPlaceholder={groq:'gsk_...',gemini:'AIza...',anthropic:'sk-ant-api03-...',openai:'sk-proj-...'};
-    const curKey=pvdKey[R.provider];
-    const inpStyle=`width:100%;padding:5px;border-radius:4px;border:1px solid var(--bdg);background:#fffaf0;color:var(--ink);font-size:12px;font-family:monospace;margin-bottom:4px;`;
-    const statusDiv=`<div id="keyValidStatus" style="font-size:10px;min-height:14px;margin-bottom:6px;"></div>`;
-    const keyHtml=curKey
-      ?`<div id="keyStatusRow" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="color:#2a8018;font-size:11px;">✓ Clave guardada</span><button onclick="document.getElementById('keyStatusRow').remove();const i=document.getElementById('authKeyInput');i.style.display='';i.focus();" style="font-size:10px;padding:2px 7px;border-radius:3px;border:1px solid var(--bdg);background:none;color:#7a5520;cursor:pointer;font-family:Cinzel,Georgia,serif;">Cambiar</button></div><input id="authKeyInput" type="password" oninput="authKeyTyped(this.value)" placeholder="${pvdPlaceholder[R.provider]}" style="display:none;${inpStyle}">${statusDiv}`
-      :`<input id="authKeyInput" type="password" oninput="authKeyTyped(this.value)" placeholder="${pvdPlaceholder[R.provider]}" style="${inpStyle}">${statusDiv}`;
-    el.innerHTML=`
-      <div class="svc-row">
-        <div class="svc-lbl">Proveedor</div>
-        <div style="display:flex;gap:5px;margin-bottom:10px;">${['groq','gemini','anthropic','openai'].map(p=>{
-          const active=R.provider===p;const hasK=!!pvdKey[p];
-          return `<button id="spvd_${p}" onclick="setAuthProvider('${p}')" style="flex:1;padding:4px 4px;border-radius:4px;border:1px solid var(--bdg);background:${active?'rgba(139,105,20,.15)':'none'};color:${active?'#5a3000':'#7a5520'};cursor:pointer;font-family:Cinzel,Georgia,serif;font-size:9px;position:relative;">${esc(pvdLabel[p])}${hasK?'<span style="position:absolute;top:2px;right:3px;font-size:7px;color:#4a9020;">●</span>':''}</button>`;
-        }).join('')}</div>
-        <div class="svc-lbl">API Key</div>
-        ${keyHtml}
-        <div style="display:flex;gap:6px;">
-          <button onclick="saveAuthFromSettings()" style="flex:1;font-size:11px;padding:5px;border-radius:3px;border:1px solid var(--bdg);background:none;color:#7a5520;cursor:pointer;font-family:Cinzel,Georgia,serif;">Guardar</button>
-          <button onclick="clearAuthFromSettings()" style="font-size:11px;padding:5px 8px;border-radius:3px;border:1px solid #c05050;background:none;color:#c05050;cursor:pointer;font-family:Cinzel,Georgia,serif;">Cerrar sesión</button>
-        </div>
-      </div>`;
   }
 }
 
@@ -109,7 +83,6 @@ export function closeAchievements(){document.getElementById('achievementsOv').st
 
 export function setModelPref(provider,v){S.modelPrefs[provider]=v;saveS();}
 export function setTtsOff(v){S.ttsOff=v;saveS();}
-export function setAuthProvider(p){R.provider=p;renderSettings();}
 
 export async function validateProviderKey(provider,key){
   try{
@@ -126,36 +99,3 @@ export async function validateProviderKey(provider,key){
     return res.ok;
   }catch(e){return null;}
 }
-
-export function authKeyTyped(val){
-  const st=document.getElementById('keyValidStatus');
-  if(!st)return;
-  clearTimeout(keyValidTimer);
-  if(!val.trim()){st.textContent='';return;}
-  st.textContent='⏳ Verificando…';st.style.color='#9a6520';
-  keyValidTimer=setTimeout(async()=>{
-    const ok=await validateProviderKey(R.provider,val.trim());
-    const st2=document.getElementById('keyValidStatus');
-    if(!st2)return;
-    if(ok===true){st2.textContent='✓ Clave válida';st2.style.color='#2a8018';}
-    else if(ok===false){st2.textContent='✗ Clave inválida';st2.style.color='#c05050';}
-    else{st2.textContent='⚠ Sin conexión';st2.style.color='#9a6520';}
-  },600);
-}
-
-export async function saveAuthFromSettings(){
-  const keyVal=(document.getElementById('authKeyInput')?.value||'').trim();
-  if(!keyVal)return;
-  if(R.provider==='groq')R.keys.groq=keyVal;
-  else if(R.provider==='gemini')R.keys.gemini=keyVal;
-  else if(R.provider==='openai')R.keys.openai=keyVal;
-  else R.keys.anthropic=keyVal;
-  await saveCreds(R.provider,keyVal);
-  showToast('✓ Guardado','#2a5018','#7acc40');
-  renderSettings();
-}
-export async function clearAuthFromSettings(){
-  await clearCreds(R.provider);
-  location.reload();
-}
-

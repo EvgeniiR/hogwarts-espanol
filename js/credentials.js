@@ -18,6 +18,21 @@ export async function saveCreds(provider,key){
   R.cachedCreds=creds;
   await writeCreds(creds);
 }
+
+// Per-provider clear (no reload — used from splash auth management).
+export async function removeCreds(provider){
+  const creds=(await loadCreds())||{};
+  delete creds[provider];
+  R.cachedCreds=creds;
+  if(!R.cachedCreds.last||R.cachedCreds.last===provider){
+    const pks=Object.keys(creds).filter(k=>k!=='last');
+    R.cachedCreds.last=pks.length?pks[0]:'groq';
+    creds.last=R.cachedCreds.last;
+  }
+  await writeCreds(creds);
+}
+
+// Full logout (reload). Kept for settings "Cerrar sesión" behaviour.
 export async function clearCreds(provider){
   const creds=(await loadCreds())||{};
   delete creds[provider];creds.last=provider;
@@ -25,14 +40,61 @@ export async function clearCreds(provider){
   await writeCreds(creds);
 }
 
+// Show/hide the saved-key indicator for a given provider.
+export function savedKeyIndicator(p){
+  const savedEl=document.getElementById(p+'KeySaved');
+  const inputEl=document.getElementById(KEY_INPUT_ID[p]);
+  const hasKey=!!(R.keys[p]||(R.cachedCreds&&R.cachedCreds[p]));
+  if(savedEl)savedEl.style.display=hasKey?'block':'none';
+  if(inputEl){
+    inputEl.style.display=hasKey?'none':'';
+    if(hasKey){
+      const v=R.keys[p]||(R.cachedCreds&&R.cachedCreds[p]);
+      if(v)inputEl.value=v;
+    }
+  }
+}
+
 export function setProvider(p){
   R.provider=p;
-  ['anthropic','gemini','groq','openai'].forEach(k=>{
-    document.getElementById('pvd_'+k).style.background=p===k?'var(--bg3)':'var(--bg2)';
-    document.getElementById('pvd_'+k).style.color=p===k?'var(--gold)':'var(--mt)';
-    document.getElementById('keyInput'+k[0].toUpperCase()+k.slice(1)).style.display=p===k?'block':'none';
+  ['groq','openai','anthropic','gemini'].forEach(k=>{
+    const btn=document.getElementById('pvd_'+k);
+    if(btn){
+      btn.style.background=p===k?'var(--bg3)':'var(--bg2)';
+      btn.style.color=p===k?'var(--gold)':'var(--mt)';
+    }
+    const div=document.getElementById('keyInput'+k[0].toUpperCase()+k.slice(1));
+    if(div)div.style.display=p===k?'block':'none';
   });
-  document.getElementById('rememberKey').checked=!!(R.cachedCreds&&R.cachedCreds[p]);
+  savedKeyIndicator(p);
+  const rk=document.getElementById('rememberKey');
+  if(rk)rk.checked=!!(R.cachedCreds&&R.cachedCreds[p]);
+}
+
+// Show the input field for editing a saved key.
+export function splashEditKey(p){
+  const savedEl=document.getElementById(p+'KeySaved');
+  const inputEl=document.getElementById(KEY_INPUT_ID[p]);
+  if(savedEl)savedEl.style.display='none';
+  if(inputEl){
+    inputEl.style.display='';
+    inputEl.focus();
+  }
+}
+
+// Remove a single provider's key without reloading.
+export async function splashDeleteKey(p){
+  delete R.keys[p];
+  await removeCreds(p);
+  savedKeyIndicator(p);
+  // If this was the current provider, pick next saved one.
+  if(R.provider===p){
+    const hasKeys=Object.keys(R.keys).filter(k=>R.keys[k]);
+    if(hasKeys.length){
+      R.provider=hasKeys[0];
+      setProvider(R.provider);
+    }
+  }
 }
 
 // Loads saved creds, primes the splash UI, and returns true if there is a
@@ -41,8 +103,12 @@ export async function prefillCreds(){
   R.cachedCreds=(await loadCreds())||{};
   const provider=(KEY_INPUT_ID[R.cachedCreds.last]&&R.cachedCreds[R.cachedCreds.last])?R.cachedCreds.last:'groq';
   setProvider(provider);
-  ['anthropic','gemini','groq','openai'].forEach(p=>{
-    if(R.cachedCreds[p])document.getElementById(KEY_INPUT_ID[p]).value=R.cachedCreds[p];
+  ['groq','openai','anthropic','gemini'].forEach(p=>{
+    if(R.cachedCreds[p]){
+      const el=document.getElementById(KEY_INPUT_ID[p]);
+      if(el)el.value=R.cachedCreds[p];
+    }
+    savedKeyIndicator(p);
   });
   return !!(R.cachedCreds.last&&R.cachedCreds[R.cachedCreds.last]);
 }

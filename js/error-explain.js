@@ -70,18 +70,23 @@ async function fetchExplanation() {
   const userMsg = `Wrong: "${m.wrong}" → Correct: "${m.right}"${m.note ? `\nNote: ${m.note}` : ''}\nExplain this error in detail.`;
   setExplLoading(true);
   setSugg([]);
+  let raw;
   try {
-    const raw = await callLLM(SYS, [{ role: 'user', content: userMsg }], 600, 'low');
-    const data = extractJSON(sanitizeJSON(raw));
-    convHistory = [{ role: 'assistant', content: data.explanation || raw }];
-    setExplLoading(false);
-    renderChat();
-    setSugg(data.suggestions || []);
+    raw = await callLLM(SYS, [{ role: 'user', content: userMsg }], 600, 'medium');
   } catch(e) {
     setExplLoading(false);
     document.getElementById('eeExpl').innerHTML =
       `<div style="color:#d04040;font-size:12px;padding:8px 0;">${friendlyError(e)}</div>`;
+    return;
   }
+  let data;
+  try {
+    data = extractJSON(sanitizeJSON(raw));
+  } catch(e) {}
+  convHistory = [{ role: 'assistant', content: (data && data.explanation) || raw }];
+  setExplLoading(false);
+  renderChat();
+  setSugg((data && data.suggestions) || []);
 }
 
 async function fetchAnswer(question) {
@@ -94,16 +99,21 @@ async function fetchAnswer(question) {
     { role: 'user', content: question }
   ];
   setSugg([]);
+  let raw;
   try {
-    const raw = await callLLM(SYS, msgs, 500, 'low');
-    const data = extractJSON(sanitizeJSON(raw));
-    convHistory.push({ role: 'assistant', content: data.explanation || data.answer || raw });
-    renderChat();
-    setSugg(data.suggestions || []);
+    raw = await callLLM(SYS, msgs, 500, 'medium');
   } catch(e) {
     convHistory.push({ role: 'assistant', content: friendlyError(e) });
     renderChat();
+    return;
   }
+  let data;
+  try {
+    data = extractJSON(sanitizeJSON(raw));
+  } catch(e) {}
+  convHistory.push({ role: 'assistant', content: (data && (data.explanation || data.answer)) || raw });
+  renderChat();
+  setSugg((data && data.suggestions) || []);
 }
 
 function setExplLoading(loading) {

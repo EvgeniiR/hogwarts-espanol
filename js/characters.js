@@ -34,7 +34,7 @@ function buildSys(persona,shape){
   if(R.provider==='gemini'){
     return `${persona}\n${CONVO_RULE}\n${SPELL_RULE}\n${SCORING_RULE}\n${VARIETY_RULE}\n${OPTIONS_RULE}\nResponde solo con este JSON, sin texto extra ni backticks:\n${shape}`;
   }
-  // anthropic (default branch): richest persona, most nuance.
+  // anthropic / openai (default branch): richest persona, most nuance.
   return `${persona}\n\nMantente siempre en personaje, con un español natural, vivo y expresivo.\n${CONVO_RULE}\n${SPELL_RULE}\n${SCORING_RULE}\n${VARIETY_RULE}\n${OPTIONS_RULE}\nResponde solo con este JSON, sin texto extra ni backticks:\n${shape}`;
 }
 
