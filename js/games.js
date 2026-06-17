@@ -7,12 +7,12 @@ import { round } from './game-core.js';
 import { genDictation, renderDictationRound, hintDictation, checkDictation, skipDictation } from './game-dictation.js';
 import { genTranslation, renderTranslationRound, hintTranslation, checkTranslation, skipTranslation } from './game-translation.js';
 import { genOrderGame, renderOrderRound, checkOrder, hintOrder, skipOrder } from './game-order.js';
-import { genMemory, hintMemory, skipMemory, flipMemCard, cleanupMemory, setRandomMode, renderMemoryLobby } from './game-memory.js';
+import { genMemory, skipMemory, flipMemCard, cleanupMemory, setRandomMode, renderMemoryLobby } from './game-memory.js';
 
 export { genDictation, hintDictation, checkDictation, skipDictation };
 export { genTranslation, hintTranslation, checkTranslation, skipTranslation };
 export { genOrderGame, checkOrder, hintOrder, skipOrder };
-export { genMemory, hintMemory, skipMemory, flipMemCard, cleanupMemory, setRandomMode, renderMemoryLobby };
+export { genMemory, skipMemory, flipMemCard, cleanupMemory, setRandomMode, renderMemoryLobby };
 
 let gameTab='dictation';
 

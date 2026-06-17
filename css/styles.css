@@ -238,6 +238,6 @@ textarea#ui::placeholder{color:#6878a8;}
 }
 @media(min-width:820px){
   .settings-card--games{width:740px;}
-  .pensieve-grid{grid-template-columns:1fr 1fr 1fr 1fr;max-width:704px;}
+  .pensieve-grid{max-width:704px;}
   .memory-card{height:80px;}
 }

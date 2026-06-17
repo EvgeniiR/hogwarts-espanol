@@ -14,6 +14,7 @@ let timerInterval = null;
 let seconds = 0;
 let timerStarted = false;
 let isProcessing = false;
+let isPreviewing = false;
 let engine = null;
 let randomMode = false;
 const recentVocab = new Set();
@@ -106,7 +107,7 @@ function checkPair() {
 }
 
 export function flipMemCard(el) {
-  if (isProcessing) return;
+  if (isProcessing || isPreviewing) return;
   const idx = parseInt(el.dataset.idx, 10);
   const card = cards[idx];
   if (card.flipped || card.matched) return;
@@ -154,17 +155,19 @@ function renderMemory() {
         </div>
       `).join('')}
     </div>
-    <div class="pensieve-actions">
-      <button onclick="hintMemory()">💡 Pista (-1)</button>
+    <div class="pensieve-actions" style="justify-content:center;">
       <button onclick="skipMemory()">⏭ Revelar todo</button>
     </div>
     <div id="memResult"></div>`;
+  if (window.innerWidth >= 820) {
+    document.getElementById('memGrid').style.gridTemplateColumns = `repeat(${totalPairs}, 1fr)`;
+  }
 }
 
 export async function genMemory() {
   if (engine) { engine.stop(); engine = null; }
   stopTimer();
-  cards = []; flippedIndices = []; matchedPairs = 0; timerStarted = false; seconds = 0; isProcessing = false;
+  cards = []; flippedIndices = []; matchedPairs = 0; timerStarted = false; seconds = 0; isProcessing = false; isPreviewing = false;
   const reqId = ++memReqId;
   const pairs = S.gameDifficulty === 'easy' ? 4 : S.gameDifficulty === 'medium' ? 6 : 8;
   let picked;
@@ -202,31 +205,25 @@ export async function genMemory() {
     cards.push({ id: i * 2, pairId: i, text: v.word, type: 'es', flipped: false, matched: false });
     cards.push({ id: i * 2 + 1, pairId: i, text: v.def || '(sin traducción)', type: 'en', flipped: false, matched: false });
   }
-  cards = shuffleArray(cards);
+  const wide = window.innerWidth >= 820;
+  const enCards = shuffleArray(cards.filter(c => c.type === 'en'));
+  const esCards = shuffleArray(cards.filter(c => c.type === 'es'));
+  if (wide) {
+    cards = [...enCards, ...esCards];
+  } else {
+    cards = enCards.flatMap((c, i) => esCards[i] ? [c, esCards[i]] : [c]);
+  }
   renderMemory();
   if (engine) { engine.stop(); engine = null; }
   engine = new ParticleEngine(document.getElementById('gamesOv'));
   requestAnimationFrame(() => { if (engine) engine.start(); });
-}
-
-export function hintMemory() {
-  if (isProcessing) return;
-  const unmatched = cards.filter(c => !c.matched && !c.flipped);
-  if (!unmatched.length) return;
-  const pick = unmatched[Math.floor(Math.random() * unmatched.length)];
-  const idx = cards.indexOf(pick);
-  const el = document.querySelector(`.memory-card[data-idx="${idx}"]`);
-  if (el) {
-    pick.flipped = true;
-    el.classList.add('flipped');
-    awardPoints(-1);
-    isProcessing = true;
-    setTimeout(() => {
-      pick.flipped = false;
-      el.classList.remove('flipped');
-      isProcessing = false;
-    }, 1000);
-  }
+  isPreviewing = true;
+  document.querySelectorAll('#memGrid .memory-card').forEach(el => el.classList.add('flipped'));
+  setTimeout(() => {
+    document.querySelectorAll('#memGrid .memory-card:not(.matched)').forEach(el => el.classList.remove('flipped'));
+    cards.forEach(c => { c.flipped = false; });
+    isPreviewing = false;
+  }, 3000);
 }
 
 export function skipMemory() {

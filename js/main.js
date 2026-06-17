@@ -13,7 +13,7 @@ import { processDateChanges, updPtsUI, updStreakUI, awardPoints, pushLevelOutcom
 import { genDailyChallenges } from './challenges.js';
 import { sendMsg, selChar, selCharByName, updHeaderAll, showHints, useHint, renderMsgs, genStarter } from './chat.js';
 import { renderSide, setSTab, navWeek, toggleVAdd, submitVAdd, editVocab, cancelEditVocab, saveEditVocab, deleteVocab, editMistake, cancelEditMistake, saveEditMistake, deleteMistake, openFc, closeFc, flipFc, navFc, handleSelUp, hideSelBtn, addSelectionToVocab } from './sidepanel.js';
-import { openGames, closeGames, setGameTab, setGameDifficulty, genDictation, genTranslation, hintDictation, checkDictation, skipDictation, hintTranslation, checkTranslation, skipTranslation, genOrderGame, checkOrder, hintOrder, skipOrder, genMemory, hintMemory, skipMemory, flipMemCard, cleanupMemory, setRandomMode, renderMemoryLobby } from './games.js';
+import { openGames, closeGames, setGameTab, setGameDifficulty, genDictation, genTranslation, hintDictation, checkDictation, skipDictation, hintTranslation, checkTranslation, skipTranslation, genOrderGame, checkOrder, hintOrder, skipOrder, genMemory, skipMemory, flipMemCard, cleanupMemory, setRandomMode, renderMemoryLobby } from './games.js';
 import { openSettings, closeSettings, setSettingsTab, renderSettings, setModelPref, setTtsOff, setAuthProvider, authKeyTyped, saveAuthFromSettings, clearAuthFromSettings, openAchievements, closeAchievements, renderAchievements, validateProviderKey } from './settings.js';
 import { showToast, aResize } from './helpers.js';
 
@@ -151,7 +151,7 @@ Object.assign(window,{
   hintDictation, checkDictation, skipDictation,
   hintTranslation, checkTranslation, skipTranslation,
   genOrderGame, checkOrder, hintOrder, skipOrder,
-  genMemory, hintMemory, skipMemory, flipMemCard, cleanupMemory, setRandomMode, renderMemoryLobby,
+  genMemory, skipMemory, flipMemCard, cleanupMemory, setRandomMode, renderMemoryLobby,
   // TTS
   speak, speakFromBtn,
   // Side panel (mobile)
