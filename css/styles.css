@@ -236,6 +236,21 @@ textarea#ui::placeholder{color:#6878a8;}
   #splashBtn{width:80%;}
   .sp-pvd-row{flex-wrap:wrap;}
 }
+.ee-err-card{background:var(--bg2);border:1px solid var(--bd);border-radius:4px;padding:10px 12px;margin-bottom:10px;}
+.ee-chat{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;min-height:0;max-height:200px;padding:4px 0 8px;}
+.ee-bubble{font-size:12px;line-height:1.5;padding:7px 10px;border-radius:6px;max-width:90%;}
+.ee-bubble-user{background:var(--bg3);color:var(--lt);align-self:flex-end;}
+.ee-bubble-assistant{background:var(--parch);color:var(--ink);align-self:flex-start;}
+.ee-sugg-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.ee-inp-row{display:flex;gap:6px;margin-top:4px;}
+.ee-inp{flex:1;background:var(--bg2);border:1px solid var(--bd);border-radius:4px;color:var(--lt);padding:6px 8px;font-size:12px;font-family:inherit;}
+.ee-inp:focus{outline:none;border-color:var(--gold);}
+.ee-send{background:none;border:1px solid var(--bd);border-radius:4px;color:var(--gold);cursor:pointer;padding:6px 8px;}
+.ee-send:hover{border-color:var(--gold);}
+.ee-loading{display:flex;gap:4px;padding:8px 0 4px;}
+.ee-loading .dot{width:5px;height:5px;border-radius:50%;background:var(--gold);animation:bonce 1s infinite;}
+.ee-loading .dot:nth-child(2){animation-delay:.2s;}
+.ee-loading .dot:nth-child(3){animation-delay:.4s;}
 @media(min-width:820px){
   .settings-card--games{width:740px;}
   .pensieve-grid{max-width:704px;}

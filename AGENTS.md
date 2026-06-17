@@ -39,7 +39,7 @@ When editing a feature, load **only this file** — not the whole project.
 | Points, streak, level, achievements, HP milestones | `js/progress.js` |
 | Daily challenges (gen + render) | `js/challenges.js` |
 | sendMsg, message render, character select, hints, owl | `js/chat.js` |
-| Side panel: vocab/grammar/mistakes tabs, flashcards, vocab CRUD | `js/sidepanel.js` |
+| Side panel: vocab/grammar/mistakes/translate tabs, flashcards, vocab CRUD, DeepL translator widget | `js/sidepanel.js` |
 | Minigame engine primitives (round, game, GAME_DIFF, award, wordDiffHtml, etc.) — leaf module | `js/game-core.js` |
 | Minigame overlay routing only (imports from game-core.js) | `js/games.js` |
 | Dictation game | `js/game-dictation.js` |
@@ -117,7 +117,7 @@ S = {
 R = {
   cur: 'hermione',             // active character key
   provider: 'groq',            // 'anthropic'|'gemini'|'groq'
-  keys: {anthropic, gemini, groq},  // in-memory API keys
+  keys: {anthropic, gemini, groq, deepl},  // in-memory API keys
   cachedCreds: {},             // saved creds from hp_creds storage
   loading: false               // true while an LLM call is in flight
 }

@@ -18,9 +18,28 @@ function showPtsFloat(n){
     if(dn){dn.classList.remove('pts-flash');void dn.offsetWidth;dn.classList.add('pts-flash');setTimeout(()=>dn.classList.remove('pts-flash'),700);}
   }
 }
+function _countStreakToday(){
+  const today=new Date().toISOString().slice(0,10);
+  if(S.streak.lastDate===today)return;
+  const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
+  if(!S.streak.lastDate||S.streak.lastDate===yesterday){
+    S.streak.count=(S.streak.count||0)+1;
+  } else {
+    S.streak.count=1;
+  }
+  S.streak.lastDate=today;
+  updStreakUI();
+  saveS();
+}
 export function awardPoints(n){
   S.weeklyPts=Math.max(0,Math.min(200,S.weeklyPts+n));
-  if(n>0){S.lifetimePts=(S.lifetimePts||0)+n;S.dailyEarned+=n;showPtsFloat(n);}
+  if(n>0){
+    S.lifetimePts=(S.lifetimePts||0)+n;
+    const prev=S.dailyEarned;
+    S.dailyEarned+=n;
+    showPtsFloat(n);
+    if(prev<50&&S.dailyEarned>=50)_countStreakToday();
+  }
   updPtsUI();checkAchievements();checkLifetimeMilestones();
 }
 export function updPtsUI(){
@@ -52,9 +71,15 @@ export function processDateChanges(){
   if(!S.lastActiveDate){S.lastActiveDate=today;S.currentWeek=week;checkAchievements();return;}
   if(S.lastActiveDate!==today){
     const diff=Math.round((new Date(today)-new Date(S.lastActiveDate))/86400000);
-    const qualified=S.dailyEarned>=50;
-    S.streak.count=(diff===1&&qualified)?(S.streak.count||0)+1:0;
-    S.streak.lastDate=S.lastActiveDate;
+    if(diff>1){
+      S.streak.count=0;
+    } else if(S.streak.lastDate!==S.lastActiveDate){
+      // yesterday not yet counted (user never hit 50 pts that session)
+      const qualified=S.dailyEarned>=50;
+      S.streak.count=qualified?(S.streak.count||0)+1:0;
+      if(qualified)S.streak.lastDate=S.lastActiveDate;
+    }
+    // else: streak.lastDate===lastActiveDate — already counted by _countStreakToday
     S.dailyEarned=0;
     S.lastActiveDate=today;
     updStreakUI();

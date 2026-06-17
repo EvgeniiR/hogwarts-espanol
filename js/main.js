@@ -12,9 +12,10 @@ import { speak, speakFromBtn, setVoicePref, testVoice } from './tts.js';
 import { processDateChanges, updPtsUI, updStreakUI, awardPoints, pushLevelOutcome } from './progress.js';
 import { genDailyChallenges } from './challenges.js';
 import { sendMsg, selChar, selCharByName, updHeaderAll, showHints, useHint, renderMsgs, genStarter } from './chat.js';
-import { renderSide, setSTab, navWeek, toggleVAdd, submitVAdd, editVocab, cancelEditVocab, saveEditVocab, deleteVocab, editMistake, cancelEditMistake, saveEditMistake, deleteMistake, openFc, closeFc, flipFc, navFc, handleSelUp, hideSelBtn, addSelectionToVocab } from './sidepanel.js';
+import { renderSide, setSTab, navWeek, toggleVAdd, submitVAdd, editVocab, cancelEditVocab, saveEditVocab, deleteVocab, editMistake, cancelEditMistake, saveEditMistake, deleteMistake, openFc, closeFc, flipFc, navFc, handleSelUp, hideSelBtn, addSelectionToVocab, translateInput, addTranslationToVocab } from './sidepanel.js';
 import { openGames, closeGames, setGameTab, setGameDifficulty, genDictation, genTranslation, hintDictation, checkDictation, skipDictation, hintTranslation, checkTranslation, skipTranslation, genOrderGame, checkOrder, hintOrder, skipOrder, genMemory, skipMemory, flipMemCard, cleanupMemory, setRandomMode, renderMemoryLobby } from './games.js';
-import { openSettings, closeSettings, setSettingsTab, renderSettings, setModelPref, setTtsOff, setAuthProvider, authKeyTyped, saveAuthFromSettings, clearAuthFromSettings, openAchievements, closeAchievements, renderAchievements, validateProviderKey } from './settings.js';
+import { openSettings, closeSettings, setSettingsTab, renderSettings, setModelPref, setTtsOff, setAuthProvider, authKeyTyped, saveAuthFromSettings, clearAuthFromSettings, saveDeepLKey, clearDeepLKey, openAchievements, closeAchievements, renderAchievements, validateProviderKey } from './settings.js';
+import { openErrExplain, closeErrExplain, askErrFollowUp, clickErrSuggestion } from './error-explain.js';
 import { showToast, aResize } from './helpers.js';
 
 // Portrait injection
@@ -86,7 +87,7 @@ document.addEventListener('touchend',handleSelUp);
 document.getElementById('msgs').addEventListener('scroll',hideSelBtn);
 document.addEventListener('keydown',e=>{
   if(e.key!=='Escape')return;
-  const pairs=[['settingsOv',closeSettings],['achievementsOv',closeAchievements],['gamesOv',closeGames],['fcOv',closeFc]];
+  const pairs=[['settingsOv',closeSettings],['achievementsOv',closeAchievements],['gamesOv',closeGames],['errExplainOv',closeErrExplain],['fcOv',closeFc]];
   for(const [id,fn] of pairs){if(document.getElementById(id)?.style.display==='flex'){fn();break;}}
 });
 
@@ -137,6 +138,8 @@ Object.assign(window,{
   editMistake, cancelEditMistake, saveEditMistake, deleteMistake,
   // Vocab selection from chat
   addSelectionToVocab,
+  // Translator tab
+  translateInput, addTranslationToVocab,
   // Flashcards
   openFc, closeFc, flipFc, navFc,
   // Achievements overlay
@@ -144,7 +147,10 @@ Object.assign(window,{
   // Settings overlay
   openSettings, closeSettings, setSettingsTab, setModelPref, setTtsOff,
   setAuthProvider, authKeyTyped, saveAuthFromSettings, clearAuthFromSettings,
+  saveDeepLKey, clearDeepLKey,
   setVoicePref, testVoice,
+  // Error explain overlay
+  openErrExplain, closeErrExplain, askErrFollowUp, clickErrSuggestion,
   // Games overlay
   openGames, closeGames, setGameTab, setGameDifficulty,
   genDictation, genTranslation,
