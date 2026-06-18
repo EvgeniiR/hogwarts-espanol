@@ -17,7 +17,7 @@ Built for a specific user (~A2/B1 Spanish, ~1.5 years Duolingo). Deployed on Clo
 
 ```
 hogwarts-espanol.html   ← HTML shell only. No JS, no CSS.
-css/styles.css          ← All styles (~178 lines, static)
+css/styles.css          ← All styles (~336 lines, static)
 js/                     ← ES modules (22 files)
 audio/                  ← Ambient MP3s + manifest.json
 index.html              ← Redirects to hogwarts-espanol.html
@@ -132,6 +132,24 @@ R = {
 ```
 
 `R` is exported from `state.js`. Mutate `R.x` directly — modules share the same object reference via ES `import {R}`.
+
+## Responsive design
+
+Five breakpoints in `css/styles.css`:
+
+| Breakpoint | What it does |
+|-----------|------|
+| `max-height:550px` | Compact mode — shrinks header, ctabs, challenge bar, input area, message bubbles for short viewports |
+| `max-width:600px` | Mobile — side panel becomes a slide-in drawer with scrim; `#sideBtn` visible; header title + streak label hidden |
+| `601px–819px` | Tablet — side panel narrowed to 148px; reduced font sizes and padding in the side panel |
+| `820px` (min) | Wide — `.pensieve-grid` expands to `max-width:704px` (was `width:740px` on the card itself before `clamp()` took over) |
+| `1100px` (min) | Extra-large — `.wrap` grows to `max-width:1100px`; side panel 230px; larger portraits (48px), message font (14px), input buttons (38px), memory cards (90px) |
+
+Overlay cards (`.settings-card`, `.fc-card`, `.settings-card--games`, `.achievements-card`, `.ee-card`) use `clamp()` to scale proportionally with viewport width — no fixed `px` widths.
+
+Memory Match grid: at ≥820px, the inline JS sets `grid-template-columns: repeat(${Math.min(totalPairs, 4)}, 1fr)` — capped at 4 columns to prevent unreadable narrow cards on hard difficulty (8 pairs).
+
+The `.wrap` container no longer has `max-height:800px` — it uses the full viewport height via `height:100vh`.
 
 ## How ES modules + inline HTML work together
 

@@ -161,7 +161,7 @@ function renderMemory() {
     </div>
     <div id="memResult"></div>`;
   if (window.innerWidth >= 820) {
-    document.getElementById('memGrid').style.gridTemplateColumns = `repeat(${totalPairs}, 1fr)`;
+    document.getElementById('memGrid').style.gridTemplateColumns = `repeat(${Math.min(totalPairs, 4)}, 1fr)`;
   }
 }
 

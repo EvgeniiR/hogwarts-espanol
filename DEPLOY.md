@@ -7,8 +7,7 @@ This app is a static site (HTML shell + `css/` + `js/` + `audio/`), hosted on Cl
 ES modules require an HTTP server — they **do not load over `file://`**:
 
 ```bash
-python3 -m http.server 8787
-# or: npx serve .
+npx live-server --port=8787
 ```
 
 Open http://localhost:8787/hogwarts-espanol.html
