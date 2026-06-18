@@ -28,8 +28,6 @@ body{font-family:'IM Fell English',Georgia,serif;background:var(--bg0);display:f
 .abtn{background:none;border:none;cursor:pointer;color:var(--mt);font-size:15px;padding:4px;}
 .abtn:hover{color:var(--gold);}
 .ctabs{position:relative;z-index:10;display:flex;border-bottom:1px solid var(--bd);background:rgba(7,9,22,.97);}
-.ctab-reset{background:none;border:none;cursor:pointer;color:var(--dim);font-size:13px;padding:8px 10px;flex-shrink:0;align-self:center;transition:color .2s;}
-.ctab-reset:hover{color:var(--mt);}
 .ctab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 4px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;}
 .ctab:hover{background:rgba(201,168,76,.05);}
 .ctab.active{background:rgba(201,168,76,.06);box-shadow:0 2px 14px rgba(201,168,76,.12);}
@@ -116,6 +114,10 @@ textarea#ui::placeholder{color:#8b9bb8;}
 .dot:nth-child(2){animation-delay:.2s;}.dot:nth-child(3){animation-delay:.4s;}
 @keyframes bonce{0%,60%,100%{transform:translateY(0);}30%{transform:translateY(-5px);}}
 .empty-ch{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--dim);font-size:13px;font-style:italic;padding:24px;text-align:center;}
+.msg-reset{text-align:right;font-size:10px;color:var(--dim);padding:0 0 4px;user-select:none;}
+.msg-reset span{cursor:pointer;transition:color .2s;}
+.msg-reset span:hover{color:var(--mt);}
+.msg-reset i{font-size:9px;margin-right:2px;vertical-align:middle;}
 .fc-ov{position:absolute;inset:0;z-index:200;background:rgba(6,8,20,.97);display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;}
 .fc-card{width:clamp(240px,35vw,400px);height:clamp(150px,22vw,220px);cursor:pointer;text-align:center;perspective:700px;}
 .fc-card-inner{position:relative;width:100%;height:100%;transition:transform .5s;transform-style:preserve-3d;}

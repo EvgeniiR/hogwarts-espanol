@@ -88,12 +88,12 @@ export function appendMsg(m){
 
 export function renderMsgs(){
   const msgs=S.hist[R.cur];const c=document.getElementById('msgs');
+  const ch=chars[R.cur];
   if(!msgs.length){
-    const ch=chars[R.cur];
     c.innerHTML=`<div class="empty-ch"><div style="width:60px;height:60px;border-radius:50%;overflow:hidden;border:2px solid var(--dim);">${SVG[R.cur]}</div><div style="color:var(--gold);font-style:italic;">${ch.name}</div><div>Di "Hola" para empezar</div></div>`;
     return;
   }
-  c.innerHTML='';
+  c.innerHTML=`<div class="msg-reset"><i class="ti ti-arrow-back-up"></i> <span onclick="resetConversation()">reiniciar charla con ${esc(ch.name)}</span></div>`;
   msgs.forEach((m,i)=>c.appendChild(createMsgEl(m,i,R.cur)));
   c.scrollTop=c.scrollHeight;
 }
