@@ -82,6 +82,7 @@ function showSplashAuth(){
   document.querySelector('.sp-key').style.display='';
   document.getElementById('splashBackBtn').style.display='';
   const btn=document.getElementById('splashBtn');
+  btn.classList.remove('loading');
   btn.textContent='Guardar';
   btn.disabled=false;
   btn.setAttribute('onclick','saveSplashAuth()');
@@ -101,12 +102,15 @@ function hideSplashAuth(){
   document.getElementById('splash').style.display='none';
   document.getElementById('splashBackBtn').style.display='none';
   const btn=document.getElementById('splashBtn');
+  btn.classList.remove('loading');
   btn.textContent='Accio Español →';
   btn.setAttribute('onclick','enterApp()');
   document.getElementById('mainApp').style.display='flex';
 }
 
 async function saveSplashAuth(){
+  const btn=document.getElementById('splashBtn');
+  btn.textContent='Guardando…';btn.classList.add('loading');btn.disabled=true;
   try{
     const keyVal=(document.getElementById(KEY_INPUT_ID[R.provider])?.value||'').trim();
     if(keyVal){
@@ -124,6 +128,8 @@ async function saveSplashAuth(){
     hideSplashAuth();
     showToast('✓ Guardado','#2a5018','#7acc40');
   }catch(e){
+    btn.classList.remove('loading');btn.disabled=false;
+    btn.textContent='Guardar';
     showToast('Error al guardar: '+e.message,'#5a0000','#f5e5c0');
   }
 }
