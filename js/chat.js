@@ -128,7 +128,13 @@ function sanitizeOptions(o){
 
 function safeParse(raw){
   try{return extractJSON(raw);}
-  catch(e){return{reply:raw.replace(/\{.*\}/s,'').trim()||raw,note:'',vocab:[],mistakes:[],spells:[],points:0,mood:2,options:[]};}
+  catch(e){
+    // Gemini sometimes outputs pseudo-JSON with bare keys (note: "text").
+    // Attempt a repair by quoting unquoted keys before retrying.
+    const repaired = raw.replace(/(^|[\n\r])\s*([a-zA-Z_]\w*)\s*:/gm, '$1"$2":');
+    try{return extractJSON(repaired);}catch(e2){}
+    return{reply:raw.replace(/\{.*\}/s,'').trim()||raw,note:'',vocab:[],mistakes:[],spells:[],points:0,mood:2,options:[]};
+  }
 }
 
 // ── Character selection ───────────────────────────────────────────────────────
