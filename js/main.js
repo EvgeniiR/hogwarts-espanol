@@ -125,6 +125,8 @@ async function saveSplashAuth(){
         await saveCreds(p,v);
       }
     }
+    // Ensure last-provider stays as the currently active one (saveCreds loop overwrites it)
+    if (R.keys[R.provider]) await saveCreds(R.provider, R.keys[R.provider]);
     hideSplashAuth();
     showToast('✓ Guardado','#2a5018','#7acc40');
   }catch(e){
