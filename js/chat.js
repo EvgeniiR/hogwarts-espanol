@@ -88,14 +88,13 @@ export function appendMsg(m){
 
 export function renderMsgs(){
   const msgs=S.hist[R.cur];const c=document.getElementById('msgs');
-  const ch=chars[R.cur];const tip=esc(ch.name);
+  const ch=chars[R.cur];
   if(!msgs.length){
-    c.innerHTML=`<div class="empty-ch"><div style="width:60px;height:60px;border-radius:50%;overflow:hidden;border:2px solid var(--dim);">${SVG[R.cur]}</div><div style="color:var(--gold);font-style:italic;">${ch.name}</div><div>Di "Hola" para empezar</div><i class="ti ti-arrow-back-up" onclick="resetConversation()" title="reiniciar charla con ${tip}" style="margin-top:8px;cursor:pointer;color:var(--dim);font-size:14px;transition:color .2s;" onmouseenter="this.style.color='var(--lt)'" onmouseleave="this.style.color='var(--dim)'"></i></div>`;
+    c.innerHTML=`<div class="empty-ch"><div style="width:60px;height:60px;border-radius:50%;overflow:hidden;border:2px solid var(--dim);">${SVG[R.cur]}</div><div style="color:var(--gold);font-style:italic;">${ch.name}</div><div>Di "Hola" para empezar</div></div>`;
     return;
   }
   c.innerHTML='';
   msgs.forEach((m,i)=>c.appendChild(createMsgEl(m,i,R.cur)));
-  c.insertAdjacentHTML('afterbegin',`<i class="ti ti-arrow-back-up msg-reset-icon" onclick="resetConversation()" title="reiniciar charla con ${tip}"></i>`);
   c.scrollTop=c.scrollHeight;
 }
 

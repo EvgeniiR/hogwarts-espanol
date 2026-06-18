@@ -182,12 +182,13 @@
       <div class="msgs" id="msgs"></div>
       <button class="sel-vocab-btn" id="selVocabBtn" onclick="addSelectionToVocab()">➕ Vocab</button>
       <div class="inp-area">
-        <div class="inp-row">
-          <button class="ibtn mic" id="micB" onclick="toggleMic()" aria-label="Voz"><i class="ti ti-microphone"></i></button>
-          <textarea id="ui" placeholder="Escribe o habla en español…" rows="1" onkeydown="hKey(event)" oninput="aResize(this)"></textarea>
-          <button class="ibtn" onclick="showHints()" aria-label="Frases sugeridas"><i class="ti ti-bulb"></i></button>
-          <button class="ibtn send" id="sendB" onclick="sendMsg()" disabled aria-label="Enviar"><i class="ti ti-send"></i></button>
-        </div>
+      <div class="inp-row">
+        <button class="ibtn mic" id="micB" onclick="toggleMic()" aria-label="Voz"><i class="ti ti-microphone"></i></button>
+        <textarea id="ui" placeholder="Escribe o habla en español…" rows="1" onkeydown="hKey(event)" oninput="aResize(this)"></textarea>
+        <button class="ibtn" onclick="showHints()" aria-label="Frases sugeridas"><i class="ti ti-bulb"></i></button>
+        <button class="ibtn send" id="sendB" onclick="sendMsg()" disabled aria-label="Enviar"><i class="ti ti-send"></i></button>
+        <button class="ibtn reset-chat" onclick="resetConversation()" aria-label="Reiniciar conversación" title="Reiniciar conversación"><i class="ti ti-arrow-back-up"></i></button>
+      </div>
         <div class="hints" id="hintsR"></div>
       </div>
     </div>
