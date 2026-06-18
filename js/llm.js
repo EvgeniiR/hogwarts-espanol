@@ -144,7 +144,8 @@ async function callOpenAI(systemPrompt, messages, maxTokens){
   return data.choices?.[0]?.message?.content||'';
 }
 
-// One-shot JSON repair — fires on safeParse failure. Tries providers in order.
+// One-shot JSON repair — fires on safeParse failure. Tries Groq first,
+// then falls back to the main conversation provider (S.repairProvider controls this).
 export async function repairJSON(raw){
   const entry = {
     ts:Date.now(), provider:'', systemPrompt:'(repairJSON)',
@@ -153,44 +154,61 @@ export async function repairJSON(raw){
   };
   R.llmLog.push(entry);
   if(R.llmLog.length>50)R.llmLog.shift();
+  const result = await _tryRepairProviders(raw, entry);
+  if (!result) {
+    entry.status='error';entry.error='all providers failed';entry.latencyMs=Date.now()-entry.ts;entry.attempts=1;
+  }
+  return result;
+}
+
+async function _tryRepairProviders(raw, entry){
   const msg = `Convierte este texto en un objeto JSON válido con los campos reply, note, vocab, mistakes, spells, options, points, mood, challengeDone. Responde SOLO con el JSON, sin explicaciones ni backticks:\n\n${raw.slice(0,2000)}`;
-  const providers = [
-    { name:'groq', key:R.keys.groq,
-      fn: ()=>fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions',{
-        method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${R.keys.groq}`},
-        body:JSON.stringify({model:'llama-3.1-8b-instant',messages:[{role:'user',content:msg}],max_tokens:300,temperature:0})
-      }).then(r=>r.json()).then(d=>d.choices?.[0]?.message?.content||'')
-    },
-    { name:'openai', key:R.keys.openai,
-      fn: ()=>fetchWithTimeout('https://api.openai.com/v1/chat/completions',{
-        method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${R.keys.openai}`},
-        body:JSON.stringify({model:'gpt-4.1-mini',messages:[{role:'user',content:msg}],max_tokens:300,temperature:0})
-      }).then(r=>r.json()).then(d=>d.choices?.[0]?.message?.content||'')
-    },
-    { name:'anthropic', key:R.keys.anthropic,
-      fn: ()=>fetchWithTimeout('https://api.anthropic.com/v1/messages',{
-        method:'POST', headers:{'Content-Type':'application/json','x-api-key':R.keys.anthropic,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:300,messages:[{role:'user',content:msg}]})
-      }).then(r=>r.json()).then(d=>d.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'')
-    },
-    { name:'gemini', key:R.keys.gemini,
-      fn: ()=>fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent`,{
-        method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':R.keys.gemini},
-        body:JSON.stringify({contents:[{role:'user',parts:[{text:msg}]}],generationConfig:{maxOutputTokens:300,temperature:0}})
-      }).then(r=>r.json()).then(d=>d.candidates?.[0]?.content?.parts?.map(p=>p.text).join('')||'')
-    }
-  ];
-  for (const p of providers) {
-    if (!p.key) continue;
-    entry.provider = p.name;
+  // Determine which providers to try based on user preference
+  const useGroq = S.repairProvider !== '';  // '' = "use main provider only"
+  const mainProvider = R.provider;
+  const toTry = [];
+  if (useGroq && mainProvider !== 'groq') toTry.push('groq');
+  toTry.push(mainProvider);
+  for (const p of toTry) {
+    if (!R.keys[p]) continue;
+    entry.provider = p;
     try {
-      const result = await p.fn();
+      const result = await _repairWith(p, msg);
       if (result) {
         entry.status='ok';entry.responseRaw=result;entry.latencyMs=Date.now()-entry.ts;entry.attempts=1;
         return result;
       }
-    } catch(e) { /* try next provider */ }
+    } catch(e) { /* try next */ }
   }
-  entry.status='error';entry.error='all providers failed';entry.latencyMs=Date.now()-entry.ts;entry.attempts=1;
+  return '';
+}
+
+async function _repairWith(provider, msg){
+  if (provider === 'groq' || provider === 'openai'){
+    const endpoint = provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
+    const model = provider === 'groq' ? 'llama-3.1-8b-instant' : (S.modelPrefs.openai||'gpt-4.1-mini');
+    const res = await fetchWithTimeout(endpoint,{
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${R.keys[provider]}`},
+      body:JSON.stringify({model, messages:[{role:'user',content:msg}], max_tokens:300, temperature:0})
+    });
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content||'';
+  }
+  if (provider === 'anthropic'){
+    const res = await fetchWithTimeout('https://api.anthropic.com/v1/messages',{
+      method:'POST', headers:{'Content-Type':'application/json','x-api-key':R.keys.anthropic,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:300, messages:[{role:'user',content:msg}]})
+    });
+    const data = await res.json();
+    return data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'';
+  }
+  if (provider === 'gemini'){
+    const res = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent`,{
+      method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':R.keys.gemini},
+      body:JSON.stringify({contents:[{role:'user',parts:[{text:msg}]}], generationConfig:{maxOutputTokens:300, temperature:0}})
+    });
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.map(p=>p.text).join('')||'';
+  }
   return '';
 }

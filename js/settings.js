@@ -52,6 +52,10 @@ export function renderSettings(){
       el.innerHTML=`<div class="svc-row"><div class="svc-lbl">Modelo de OpenAI</div>
         <select onchange="setModelPref('openai',this.value)">${models.map(([v,l])=>`<option value="${v}" ${S.modelPrefs.openai===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>`;
     }
+    const repairOpts=[['groq','Groq (gratis, rápido)'],['','Proveedor principal']];
+    el.innerHTML+=`<div class="svc-row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bdg);"><div class="svc-lbl">Reparar JSON (si falla el parseo)</div>
+      <select onchange="setRepairProvider(this.value)">${repairOpts.map(([v,l])=>`<option value="${v}" ${S.repairProvider===v?'selected':''}>${esc(l)}</option>`).join('')}</select>
+      <div class="edim" style="font-size:10px;">Si un modelo devuelve JSON roto, se usa este proveedor para repararlo.</div></div>`;
   }else if(settingsTab==='log'){
     renderLogTab(el);
   }
@@ -124,6 +128,7 @@ export function openAchievements(){renderAchievements();document.getElementById(
 export function closeAchievements(){document.getElementById('achievementsOv').style.display='none';}
 
 export async function setModelPref(provider,v){S.modelPrefs[provider]=v;await saveS();}
+export async function setRepairProvider(v){S.repairProvider=v;await saveS();}
 export async function setTtsOff(v){S.ttsOff=v;await saveS();}
 
 export async function validateProviderKey(provider,key){

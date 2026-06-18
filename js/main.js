@@ -14,7 +14,7 @@ import { genDailyChallenges } from './challenges.js';
 import { sendMsg, selChar, selCharByName, updHeaderAll, showHints, useHint, renderMsgs, genStarter, retryLastMsg } from './chat.js';
 import { renderSide, setSTab, navWeek, toggleVAdd, submitVAdd, editVocab, cancelEditVocab, saveEditVocab, deleteVocab, editMistake, cancelEditMistake, saveEditMistake, deleteMistake, openFc, closeFc, flipFc, navFc, toggleFcReverse, handleSelUp, hideSelBtn, addSelectionToVocab, startSrsReview, srsReveal, srsAnswer, closeSrsReview } from './sidepanel.js';
 import { openGames, closeGames, setGameTab, setGameDifficulty, genDictation, genTranslation, hintDictation, checkDictation, skipDictation, hintTranslation, checkTranslation, skipTranslation, genOrderGame, checkOrder, hintOrder, skipOrder, genMemory, skipMemory, flipMemCard, cleanupMemory, setRandomMode, renderMemoryLobby } from './games.js';
-import { openSettings, closeSettings, setSettingsTab, renderSettings, setModelPref, setTtsOff, openAchievements, closeAchievements, renderAchievements, validateProviderKey, clearLog } from './settings.js';
+import { openSettings, closeSettings, setSettingsTab, renderSettings, setModelPref, setRepairProvider, setTtsOff, openAchievements, closeAchievements, renderAchievements, validateProviderKey, clearLog } from './settings.js';
 import { openErrExplain, closeErrExplain, askErrFollowUp, clickErrSuggestion } from './error-explain.js';
 import { showToast, aResize } from './helpers.js';
 
@@ -231,7 +231,7 @@ Object.assign(window,{
   // Achievements overlay
   openAchievements, closeAchievements,
   // Settings overlay
-  openSettings, closeSettings, setSettingsTab, setModelPref, setTtsOff,
+  openSettings, closeSettings, setSettingsTab, setModelPref, setRepairProvider, setTtsOff,
   setVoicePref, testVoice,
   clearLog,
   // Auth / splash management

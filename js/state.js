@@ -19,6 +19,7 @@ export let S = {
   voicePrefs:{f:'',m:''},modelPrefs:{anthropic:'',gemini:'',groq:'',openai:''},
   achievements:{streak:0,msgs:0,vocab:0,challenges:0,pts:0},
   levelWindow:[],gameDifficulty:'medium',musicOff:false,ttsOff:false,
+  repairProvider:'groq',
   currentHints:{},
   version:2
 };
@@ -78,6 +79,7 @@ export async function loadS(){
       if(d.gameDifficulty)S.gameDifficulty=d.gameDifficulty;
       if(d.musicOff!==undefined)S.musicOff=d.musicOff;
       if(d.ttsOff!==undefined)S.ttsOff=d.ttsOff;
+      if(d.repairProvider!==undefined)S.repairProvider=d.repairProvider;
       // Persistent challenge counter (BUGFIX): the old metric counted
       // S.challengeDone, which is pruned to 14 days, so the achievement bar
       // slid backward over time. Seed the new counter from the best evidence
