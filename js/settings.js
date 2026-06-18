@@ -123,8 +123,8 @@ export function renderAchievements(){
 export function openAchievements(){renderAchievements();document.getElementById('achievementsOv').style.display='flex';}
 export function closeAchievements(){document.getElementById('achievementsOv').style.display='none';}
 
-export function setModelPref(provider,v){S.modelPrefs[provider]=v;saveS();}
-export function setTtsOff(v){S.ttsOff=v;saveS();}
+export async function setModelPref(provider,v){S.modelPrefs[provider]=v;await saveS();}
+export async function setTtsOff(v){S.ttsOff=v;await saveS();}
 
 export async function validateProviderKey(provider,key){
   try{
