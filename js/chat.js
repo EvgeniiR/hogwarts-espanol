@@ -88,18 +88,14 @@ export function appendMsg(m){
 
 export function renderMsgs(){
   const msgs=S.hist[R.cur];const c=document.getElementById('msgs');
-  const ch=chars[R.cur];
+  const ch=chars[R.cur];const tip=esc(ch.name);
   if(!msgs.length){
-    c.innerHTML=`<div class="empty-ch"><div style="width:60px;height:60px;border-radius:50%;overflow:hidden;border:2px solid var(--dim);">${SVG[R.cur]}</div><div style="color:var(--gold);font-style:italic;">${ch.name}</div><div>Di "Hola" para empezar</div></div>`;
+    c.innerHTML=`<div class="empty-ch"><div style="width:60px;height:60px;border-radius:50%;overflow:hidden;border:2px solid var(--dim);">${SVG[R.cur]}</div><div style="color:var(--gold);font-style:italic;">${ch.name}</div><div>Di "Hola" para empezar</div><i class="ti ti-arrow-back-up" onclick="resetConversation()" title="reiniciar charla con ${tip}" style="margin-top:8px;cursor:pointer;color:var(--dim);font-size:14px;transition:color .2s;" onmouseenter="this.style.color='var(--lt)'" onmouseleave="this.style.color='var(--dim)'"></i></div>`;
     return;
   }
   c.innerHTML='';
-  const tip=esc(ch.name);
-  const btn=document.createElement('div');
-  btn.style.cssText='text-align:right;padding:0 4px 6px;';
-  btn.innerHTML=`<i class="ti ti-arrow-back-up" onclick="resetConversation()" title="reiniciar charla con ${tip}" style="cursor:pointer;color:var(--dim);font-size:14px;transition:color .2s;" onmouseenter="this.style.color='var(--lt)'" onmouseleave="this.style.color='var(--dim)'"></i>`;
-  c.appendChild(btn);
   msgs.forEach((m,i)=>c.appendChild(createMsgEl(m,i,R.cur)));
+  c.insertAdjacentHTML('afterbegin',`<i class="ti ti-arrow-back-up msg-reset-icon" onclick="resetConversation()" title="reiniciar charla con ${tip}"></i>`);
   c.scrollTop=c.scrollHeight;
 }
 
@@ -165,10 +161,10 @@ async function safeParse(raw){
 }
 
 // ── Character selection ───────────────────────────────────────────────────────
-export function selChar(tab){
+export async function selChar(tab){
   document.querySelectorAll('.ctab').forEach(t=>{t.classList.remove('active');t.style.borderBottomColor='transparent';});
   tab.classList.add('active');R.cur=tab.dataset.ch;
-  S.lastChar=R.cur;saveS();
+  S.lastChar=R.cur;await saveS();
   const ch=chars[R.cur];tab.style.borderBottomColor=ch.ac;
   const b=document.getElementById('hbadge');b.textContent=ch.house;b.style.background=ch.bbg;b.style.color=ch.btxt;b.style.borderColor=ch.bbd;
   document.getElementById('mainApp').style.setProperty('--char-ac',ch.ac);
