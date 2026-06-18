@@ -7,33 +7,29 @@ import { chars, LEVELS } from './characters.js';
 import { callLLM } from './llm.js';
 import { aResize, extractJSON, showToast } from './helpers.js';
 
-export const CHALLENGE_PROMPT=`You are a creative Spanish-language teacher and Harry Potter super-fan.
-Today is {{DATE}}. Generate exactly 4 daily role-play challenges for the app Hogwarts Español,
-where a {{LEVEL}} learner practises by chatting with four characters.
+export const CHALLENGE_SYS = `You are a creative Spanish-language teacher and Harry Potter super-fan.
+Generate daily role-play challenges where the learner practises Spanish by chatting with characters.
 
 Character themes and difficulty:
-- hermione (nivel {{LEVEL}}): investigación en la biblioteca, hechizos, preparación de exámenes, normas de Hogwarts — vocabulario académico
-- dumbledore (un poco más difícil que {{LEVEL}}): dilemas morales, acertijos, sabiduría, reflexiones filosóficas — estructuras complejas
-- hagrid (más fácil que {{LEVEL}} — frases cortas, vocabulario básico): criaturas mágicas, alimentar/domesticar animales, el bosque
-- snape (más difícil que {{LEVEL}}): pociones, castigos, disculpas formales, defender decisiones — registro formal, gramática exigente
-
-Each challenge is a short mission the user must accomplish entirely in Spanish.
-The challenge text (in Spanish) is shown to the user before they start.
-
-Generate exactly one challenge per character (4 total). Output ONLY a JSON array:
-[{"character":"hagrid","challenge":"Cuéntale a Hagrid cuál es tu criatura mágica favorita y por qué la encuentras fascinante.","focus":"el verbo 'gustar/encantar' y adjetivos básicos","exampleOpener":"Hagrid, me encantan los hipogrifos porque son muy valientes."},{"character":"snape","challenge":"Convence al Profesor Snape de que tu Poción Multijugos salió mal por culpa de los ingredientes, no por un error tuyo.","focus":"dar excusas y disculpas formales (condicional / imperfecto de subjuntivo)","exampleOpener":"Profesor, quisiera explicarle que los ingredientes estaban en mal estado."}]
+- hermione (at the learner's level): biblioteca, hechizos, exámenes, normas — vocabulario académico
+- dumbledore (slightly harder): dilemas morales, acertijos, sabiduría, reflexiones filosóficas — estructuras complejas
+- hagrid (easier — short sentences, basic vocab): criaturas mágicas, alimentar animales, el bosque
+- snape (harder): pociones, castigos, disculpas formales — registro formal, gramática exigente
 
 Rules:
-- character must be exactly one of: hermione, dumbledore, hagrid, snape — one each
-- challenge: 1-2 sentences in Spanish describing the mission
-- focus: the main grammar or vocabulary point to practise (in Spanish), calibrated to each character's difficulty level
-- exampleOpener: a natural Spanish opening phrase for the user
-- Hagrid's challenge must use simpler vocabulary and shorter sentences than the overall level; Snape's must be noticeably more demanding
-- Include a mix of scenarios across the 4 characters: asking for help, persuading, recounting, apologising, describing, making plans
-- Use authentic Harry Potter lore (pociones, criaturas, hechizos, tareas del Torneo de los Tres Magos, contraseñas de salas comunes, castigos)
+- Exactly one challenge per character (4 total)
+- challenge: 1-2 sentences in Spanish describing a mini-mission
+- focus: the main grammar/vocabulary point to practise (in Spanish)
+- exampleOpener: a natural Spanish opening phrase the user can say
+- Hagrid must use simpler vocabulary; Snape must be noticeably more demanding
+- Mix scenarios: asking for help, persuading, recounting, apologising, describing, making plans
+- Use authentic Harry Potter lore
 - Challenges should feel like mini-quests, not classroom exercises
-- Today is {{DATE}} — make today's challenges fresh and different from a typical day
-- Output ONLY the JSON array — no markdown, no explanation`;
+- Output ONLY a clean JSON array — no markdown, no explanation`;
+
+const CHALLENGE_USER = `Today is {{DATE}}. Generate exactly 4 challenges for a {{LEVEL}} learner. Output ONLY this JSON array:
+[{"character":"hagrid","challenge":"Cuéntale a Hagrid cuál es tu criatura mágica favorita y por qué la encuentras fascinante.","focus":"el verbo 'gustar/encantar' y adjetivos básicos","exampleOpener":"Hagrid, me encantan los hipogrifos porque son muy valientes."},{"character":"snape","challenge":"Convence al Profesor Snape de que tu Poción Multijugos salió mal por culpa de los ingredientes, no por un error tuyo.","focus":"dar excusas y disculpas formales (condicional / imperfecto de subjuntivo)","exampleOpener":"Profesor, quisiera explicarle que los ingredientes estaban en mal estado."}]
+Make today's challenges fresh and different from a typical day.`;
 
 export function renderChallengeUI(k){
   const ck=k+'_'+new Date().toISOString().slice(0,10);
@@ -84,7 +80,7 @@ export async function genDailyChallenges(){
   chalEl.style.fontStyle='';
   chalEl.innerHTML='<span class="mem-loading">Generando desafíos de hoy</span>';
   try{
-    const raw=await callLLM(null,[{role:'user',content:CHALLENGE_PROMPT.replace(/\{\{LEVEL\}\}/g,LEVELS[S.level]).replace(/\{\{DATE\}\}/g,today)}],800,'low');
+    const raw=await callLLM(CHALLENGE_SYS,[{role:'user',content:CHALLENGE_USER.replace(/\{\{LEVEL\}\}/g,LEVELS[S.level]).replace(/\{\{DATE\}\}/g,today)}],800,'low');
     const arr=extractJSON(raw);
     if(Array.isArray(arr)&&arr.length>=4){
       const map={};

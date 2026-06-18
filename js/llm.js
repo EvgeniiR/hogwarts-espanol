@@ -146,6 +146,13 @@ async function callOpenAI(systemPrompt, messages, maxTokens){
 
 // One-shot JSON repair — fires on safeParse failure. Uses Groq fast model.
 export async function repairJSON(raw){
+  const entry = {
+    ts:Date.now(), provider:'groq', systemPrompt:'(repairJSON)',
+    messages:[{role:'user',content:raw.slice(0,800)}],
+    maxTokens:300, effort:'repair', status:'pending'
+  };
+  R.llmLog.push(entry);
+  if(R.llmLog.length>50)R.llmLog.shift();
   try{
     const res = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions',{
       method:'POST',
@@ -158,6 +165,11 @@ export async function repairJSON(raw){
       })
     });
     const data = await res.json();
-    return data.choices?.[0]?.message?.content||'';
-  }catch(e){return '';}
+    const result = data.choices?.[0]?.message?.content||'';
+    entry.status='ok';entry.responseRaw=result;entry.latencyMs=Date.now()-entry.ts;entry.attempts=1;
+    return result;
+  }catch(e){
+    entry.status='error';entry.error=e.message;entry.latencyMs=Date.now()-entry.ts;entry.attempts=1;
+    return '';
+  }
 }

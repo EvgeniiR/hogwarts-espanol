@@ -29,10 +29,10 @@ const VARIETY_RULE=`VARIEDAD: no repitas frases, aperturas ni estructuras que ya
 function buildSys(persona,shape){
   if(R.provider==='groq'){
     // Llama 3.3 follows short, rule-style, directive prompts best.
-    return `${persona}\nReglas:\n- ${SPELL_RULE}\n- ${SCORING_RULE}\n- ${CONVO_RULE}\n- ${VARIETY_RULE}\n- ${OPTIONS_RULE}\nRESPONDE ÚNICAMENTE con este JSON válido. Sin texto adicional, sin backticks, sin markdown:\n${shape}`;
+    return `IMPORTANTE: Responde SOLO con el objeto JSON de abajo. Sin texto adicional, sin markdown, sin backticks.\n${persona}\nReglas:\n- ${SPELL_RULE}\n- ${SCORING_RULE}\n- ${CONVO_RULE}\n- ${VARIETY_RULE}\n- ${OPTIONS_RULE}\n${shape}`;
   }
   if(R.provider==='gemini'){
-    return `${persona}\n${CONVO_RULE}\n${SPELL_RULE}\n${SCORING_RULE}\n${VARIETY_RULE}\n${OPTIONS_RULE}\nIMPORTANTE: Tu respuesta conversacional va DENTRO del campo "reply" del JSON. No escribas NADA fuera del JSON — ni una palabra, ni un salto de línea. Solo el objeto JSON completo y válido, sin backticks:\n${shape}`;
+    return `IMPORTANTE: Responde ÚNICAMENTE con un objeto JSON válido. El campo "reply" contiene tu respuesta conversacional completa. No escribas NADA fuera del JSON — ni una palabra antes ni después. Sin backticks.\n\n${persona}\n${CONVO_RULE}\n${SPELL_RULE}\n${SCORING_RULE}\n${VARIETY_RULE}\n${OPTIONS_RULE}\n${shape}`;
   }
   // anthropic / openai (default branch): richest persona, most nuance.
   return `${persona}\n\nMantente siempre en personaje, con un español natural, vivo y expresivo.\n${CONVO_RULE}\n${SPELL_RULE}\n${SCORING_RULE}\n${VARIETY_RULE}\n${OPTIONS_RULE}\nResponde solo con este JSON, sin texto extra ni backticks:\n${shape}`;

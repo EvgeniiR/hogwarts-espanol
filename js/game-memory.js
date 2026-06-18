@@ -179,7 +179,7 @@ export async function genMemory() {
   let picked;
   if (randomMode) {
     document.getElementById('gamesContent').innerHTML = diffSelectorHtml() + '<div class="mem-loading">Generando vocabulario aleatorio</div>';
-    const llm = await llmVocabAll(pairs);
+    const llm = await llmVocab(pairs, true);
     if (reqId !== memReqId) return;
     if (llm && llm.length >= 2) {
       picked = llm;
@@ -270,37 +270,24 @@ export function cleanupMemory() {
   if (engine) { engine.stop(); engine = null; }
 }
 
-async function llmVocab(count) {
+async function llmVocab(count, fresh = false) {
   if (!R.keys.groq && !R.keys.gemini && !R.keys.anthropic) return null;
   const exclude = recentVocab.size ? `\nNO uses ninguna de estas palabras: ${[...recentVocab].join(', ')}` : '';
-  const prompt = `Genera ${count} pares de vocabulario español-inglés nivel A2/B1.
+  const prompt = `Genera${fresh?' exactamente':''} ${count} pares de vocabulario español-inglés nivel A2/B1.
 Palabras útiles y naturales — temas cotidianos o del mundo de Harry Potter.
 Output ONLY un JSON array: [{"word":"tranquilo","def":"calm"},{"word":"escoba","def":"broom"}]
 Sin markdown, sin explicación.${exclude}`;
   try {
-    const raw = await callLLM(`Eres un profesor de español generando pares de vocabulario para un juego de memoria de nivel ${LEVELS[S.level]}.`, [{ role: 'user', content: prompt }], 600, 'low');
-    const arr = extractJSON(raw);
-    if (Array.isArray(arr)) return arr.filter(v => v.word && v.def).map(v => ({ word: v.word, def: v.def, ts: Date.now() }));
-  } catch (e) { /* silent */ }
-  return null;
-}
-
-async function llmVocabAll(count) {
-  if (!R.keys.groq && !R.keys.gemini && !R.keys.anthropic) return null;
-  const exclude = recentVocab.size ? `\nNO uses ninguna de estas palabras: ${[...recentVocab].join(', ')}` : '';
-  const prompt = `Genera exactamente ${count} pares de vocabulario español-inglés nivel A2/B1.
-Palabras útiles y naturales — temas cotidianos o del mundo de Harry Potter.
-Output ONLY un JSON array: [{"word":"tranquilo","def":"calm"},{"word":"escoba","def":"broom"}]
-Sin markdown, sin explicación.${exclude}`;
-  try {
-    const raw = await callLLM(`Eres un profesor de español generando pares de vocabulario para un juego de memoria de nivel ${LEVELS[S.level]}.`, [{ role: 'user', content: prompt }], 800, 'low');
+    const raw = await callLLM(`Eres un profesor de español generando pares de vocabulario para un juego de memoria de nivel ${LEVELS[S.level]}.`, [{ role: 'user', content: prompt }], fresh ? 800 : 600, 'low');
     const arr = extractJSON(raw);
     if (!Array.isArray(arr)) return null;
     const valid = arr.filter(v => v.word && v.def);
-    valid.forEach(v => {
-      recentVocab.add(v.word.toLowerCase());
-      if (recentVocab.size > RECENT_MAX) recentVocab.delete([...recentVocab][0]);
-    });
+    if (fresh) {
+      valid.forEach(v => {
+        recentVocab.add(v.word.toLowerCase());
+        if (recentVocab.size > RECENT_MAX) recentVocab.delete([...recentVocab][0]);
+      });
+    }
     return valid.map(v => ({ word: v.word, def: v.def, ts: Date.now() }));
   } catch (e) { /* silent */ }
   return null;
