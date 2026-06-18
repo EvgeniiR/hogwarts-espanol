@@ -19,6 +19,7 @@ export function updMood(k,v){
   if(dot){
     dot.style.background=['#d04040','#c08020','#c9a84c','#4aa020','#20d060'][v];
     dot.title=MOOD_LABELS[v];
+    dot.setAttribute('aria-label',MOOD_LABELS[v]);
     dot.classList.remove('mood-pulse');
     void dot.offsetWidth;
     dot.classList.add('mood-pulse');
