@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hogwarts Español</title>
+<meta name="theme-color" content="#07091a">
+<link rel="manifest" href="manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <link rel="stylesheet" href="css/styles.css">
@@ -14,7 +16,7 @@
 <div class="owl-wrap" id="owlW"></div>
 
 <div class="fc-ov" id="fcOv">
-  <div style="font-family:'Cinzel',Georgia,serif;font-size:11px;color:var(--gold);letter-spacing:.1em;">VOCABULARIO · FLASHCARDS</div>
+  <div style="font-family:'Cinzel',Georgia,serif;font-size:11px;color:var(--gold);letter-spacing:.1em;">VOCABULARIO · FLASHCARDS <button onclick="toggleFcReverse()" id="fcReverseBtn" style="font-size:10px;padding:2px 8px;border-radius:3px;border:1px solid var(--bdg);background:none;color:#7a5520;cursor:pointer;font-family:Cinzel,Georgia,serif;margin-left:8px;">🇪🇸→🇬🇧</button></div>
   <div style="font-size:12px;color:var(--mt);" id="fcProg">0 / 0</div>
   <div class="fc-card" onclick="flipFc()">
     <div class="fc-card-inner">
@@ -209,5 +211,10 @@
 </div>
 
 <script type="module" src="js/main.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+}
+</script>
 </body>
 </html>

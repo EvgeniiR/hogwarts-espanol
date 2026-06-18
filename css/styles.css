@@ -215,6 +215,15 @@ textarea#ui::placeholder{color:#8b9bb8;}
 /* Vocab panel action links (not to be confused with .chal-act) */
 .side-act{font-size:11px;color:#8b6914;cursor:pointer;}
 .side-act:hover{color:var(--gold);}
+/* SRS review in side panel */
+.srs-review{text-align:center;padding:8px 0;}
+.srs-hdr{font-size:10px;color:#b09848;font-family:'Cinzel',Georgia,serif;margin-bottom:8px;letter-spacing:.05em;}
+.srs-review .srs-word{font-size:15px;color:var(--gold);font-style:italic;margin-bottom:4px;line-height:1.4;}
+.srs-review .srs-def{font-size:12px;color:var(--lt);line-height:1.4;}
+.srs-reveal-btn{font-size:11px;padding:4px 12px;border-radius:3px;border:1px solid var(--bdg);background:none;color:var(--gold);cursor:pointer;font-family:'Cinzel',Georgia,serif;}
+.srs-reveal-btn:hover{background:rgba(201,168,76,.1);}
+.srs-review .vadd-row{margin-top:8px;}
+.srs-review .vadd-row button{font-size:11px;}
 /* Splash CTA button */
 .sp-btn{display:inline-block;margin-top:8px;padding:12px 36px;background-color:#740001;color:#f5e5c0;border:1.5px solid #c9a84c;border-radius:4px;font-family:'Cinzel',Georgia,serif;font-size:15px;cursor:pointer;letter-spacing:.06em;}
 .sp-btn:hover{background-color:#9a0000;}

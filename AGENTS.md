@@ -17,12 +17,16 @@ Built for a specific user (~A2/B1 Spanish, ~1.5 years Duolingo). Deployed on Clo
 
 ```
 hogwarts-espanol.html   ← HTML shell only. No JS, no CSS.
-css/styles.css          ← All styles (~336 lines, static)
-js/                     ← ES modules (22 files)
+css/styles.css          ← All styles (~348 lines, static)
+js/                     ← ES modules (23 files)
 audio/                  ← Ambient MP3s + manifest.json
 index.html              ← Redirects to hogwarts-espanol.html
 DEPLOY.md               ← Deploy instructions
 AGENTS.md               ← This file
+manifest.json           ← PWA manifest
+sw.js                   ← Service worker (cache-first for static assets)
+icon-192.png            ← PWA icon 192×192
+icon-512.png            ← PWA icon 512×512
 ```
 
 ## Which file for which feature
@@ -44,7 +48,7 @@ When editing a feature, load **only this file** — not the whole project.
 | Points, streak, level, achievements, HP milestones | `js/progress.js` |
 | Daily challenges (gen + render) | `js/challenges.js` |
 | sendMsg, message render, character select, hints, owl, retryLastMsg, updProviderBadge | `js/chat.js` |
-| Side panel: vocab/grammar/mistakes tabs, flashcards, vocab CRUD, flashcard TTS | `js/sidepanel.js` |
+| Side panel: vocab/grammar/mistakes tabs, flashcards, vocab CRUD, flashcard TTS, SRS review, flashcard reverse mode | `js/sidepanel.js` |
 | Error explain overlay: grammar mistake Q&A, loading states | `js/error-explain.js` |
 | Minigame engine primitives (round, game, GAME_DIFF, award, wordDiffHtml, etc.) — leaf module | `js/game-core.js` |
 | Minigame overlay routing only (imports from game-core.js) | `js/games.js` |
@@ -53,6 +57,7 @@ When editing a feature, load **only this file** — not the whole project.
 | Word-order game (drag-and-drop, requires SortableJS CDN) | `js/game-order.js` |
 | Pensieve Memory Match (card-flip, Canvas particle engine) | `js/game-memory.js` |
 | Canvas particle engine (ambient float + burst on match) | `js/particles.js` |
+| Spaced repetition (vocab SRS — Leitner levels 0-4) | `js/srs.js` |
 | Settings overlay: voice, model, llm log viewer | `js/settings.js` |
 | All CSS | `css/styles.css` |
 
@@ -66,6 +71,24 @@ When editing a feature, load **only this file** — not the whole project.
 - **Scoring**: 1 pt per matched pair (feedback only); `award('correct')` fires **once** at board completion (main pts + combo milestone); `pushLevelOutcome(true)` fires once at board completion; skip deducts 1 pt and counts as incorrect outcome
 - **Card colors**: driven by `data-type="es"` / `data-type="en"` attribute on `.memory-card`; CSS attribute selectors `[data-type="es"] .memory-card-front` (gold gradient) / `[data-type="en"] .memory-card-front` (blue gradient); same for `.memory-card-back` (parchment gold vs blue-grey)
 - **Imports**: `callLLM` from `llm.js`, `extractJSON`/`showToast` from `helpers.js`, `R`/`saveS` from `state.js`
+- **SRS integration**: `checkPair()` calls `srsPromote()` on the Spanish word's vocab entry on each correct match. `boardComplete()` saves state.
+
+**Flashcards (`sidepanel.js`) specifics:**
+- Spanish→English default, toggle to English→Spanish via `toggleFcReverse()` button in overlay header (updates to 🇬🇧→🇪🇸)
+- `fcReverse` flag swaps `fcWord`/`fcDef` display and the button label
+- TTS always speaks the Spanish word regardless of mode
+- 800ms debounce prevents voice glitching on rapid flips
+- "Toca para revelar →" hint hides after first flip, resets per session
+
+**SRS / Spaced Repetition (`srs.js`) specifics:**
+- Leitner-style: 5 levels (0=new, 1=1d, 2=3d, 3=7d, 4=30d/mastered)
+- Vocab entries get `srsLevel` (0-4) and `srsNext` (epoch ms of next review)
+- `state.js` `loadS()` migrates existing vocab — adds defaults for missing fields
+- `game-memory.js` `checkPair()` promotes on correct pair match
+- Side panel vocab tab: shows `📅 N` due-count badge + `▶ Repasar` button
+- Inline review: one word at a time, `srsReveal()` shows definition, `srsAnswer(true/false)` promotes/demotes
+- Review session ends when queue exhausted; `closeSrsReview()` exits early
+- `startSrsReview`, `srsReveal`, `srsAnswer`, `closeSrsReview` are on `window`
 
 **For cross-cutting changes** (e.g. a new state field), you'll need `state.js` + the module(s) that read/write it.
 

@@ -7,6 +7,7 @@
 //       `import {R}` reflects cross-module mutations (ES import bindings are
 //       read-only for importers, so a bare exported `let` would not).
 import { kvGet, kvSet } from './storage.js';
+import { srsInit } from './srs.js';
 
 export let S = {
   vocab:[],mistakes:[],grammar:[],
@@ -87,7 +88,7 @@ export async function loadS(){
   }catch(e){}
   S.version=2;
   const now=Date.now();
-  S.vocab.forEach(v=>{if(!v.ts)v.ts=now;});
+  S.vocab.forEach(v=>{if(!v.ts)v.ts=now;srsInit(v);});
   S.mistakes.forEach(m=>{if(!m.ts)m.ts=now;});
   S.grammar.forEach(g=>{if(!g.ts)g.ts=now;});
 }

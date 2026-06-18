@@ -5,6 +5,7 @@ import { awardPoints, pushLevelOutcome } from './progress.js';
 import { playCorrect, playIncorrect } from './audio.js';
 import { game, diffSelectorHtml, award } from './game-core.js';
 import { ParticleEngine } from './particles.js';
+import { srsPromote } from './srs.js';
 import { callLLM } from './llm.js';
 
 let cards = [];
@@ -86,6 +87,9 @@ function checkPair() {
     }
     playCorrect();
     awardPoints(1);
+    const esCard = c1.type === 'es' ? c1 : c2;
+    const ve = S.vocab.find(x => x.word.toLowerCase() === esCard.text.toLowerCase());
+    if (ve) srsPromote(ve);
     flippedIndices = [];
     isProcessing = false;
     const pEl = document.getElementById('memPairs');

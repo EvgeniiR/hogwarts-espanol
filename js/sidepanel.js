@@ -8,6 +8,7 @@ import { callLLM } from './llm.js';
 import { esc, showToast, weekStart } from './helpers.js';
 import { checkAchievements } from './progress.js';
 import { playVocab } from './audio.js';
+import { srsGetDue, srsDueCount, srsPromote, srsDemote } from './srs.js';
 
 // ── Vocab dedup (shared with chat.js via import) ─────────────────────────────
 // BUGFIX: case-insensitive throughout — the old addVocabWord was already
@@ -76,6 +77,26 @@ export async function addSelectionToVocab(){
   showToast(`✨ "${word}" añadida al vocabulario`,'#2a5018','#7acc40');
 }
 
+// ── SRS Review ────────────────────────────────────────────────────────────────
+let srsReviewing = false, srsReviewCards = [], srsReviewIdx = 0;
+export function startSrsReview() {
+  srsReviewCards = srsGetDue(S.vocab);
+  if (!srsReviewCards.length) { showToast('No hay palabras para repasar', '#9aa8d0', '#f0e8e0'); return; }
+  srsReviewIdx = 0; srsReviewing = true; renderSide();
+}
+export function srsReveal() {
+  const def = document.getElementById('srsDef');
+  if (def) def.style.display = '';
+}
+export function srsAnswer(known) {
+  const v = srsReviewCards[srsReviewIdx];
+  if (known) srsPromote(v); else srsDemote(v);
+  srsReviewIdx++;
+  if (srsReviewIdx >= srsReviewCards.length) { srsReviewing = false; saveS(); renderSide(); return; }
+  renderSide();
+}
+function closeSrsReview() { srsReviewing = false; renderSide(); }
+
 // ── Week navigation ────────────────────────────────────────────────────────────
 let viewWeek=weekStart(Date.now());
 let sTab='vocab',editingVocab=null,editingMistake=null;
@@ -135,7 +156,7 @@ export function saveEditMistake(idx){
 export function deleteMistake(idx){S.mistakes.splice(idx,1);renderSide();saveS();}
 
 // ── Flashcards ────────────────────────────────────────────────────────────────
-let fcCards=[],fcIdx=0,fcFlipped=false,fcLastSpeak=0,fcEverFlipped=false;
+let fcCards=[],fcIdx=0,fcFlipped=false,fcLastSpeak=0,fcEverFlipped=false,fcReverse=false;
 export function openFc(){
   fcEverFlipped=false;
   if(!S.vocab.length){showToast('Habla con los personajes para acumular vocabulario','#9aa8d0','#f0e8e0');return;}
@@ -143,14 +164,15 @@ export function openFc(){
   document.getElementById('fcOv').style.display='flex';
 }
 export function closeFc(){document.getElementById('fcOv').style.display='none';if(window.speechSynthesis)window.speechSynthesis.cancel();}
+export function toggleFcReverse(){fcReverse=!fcReverse;const btn=document.getElementById('fcReverseBtn');if(btn)btn.textContent=fcReverse?'🇬🇧→🇪🇸':'🇪🇸→🇬🇧';renderFc();}
 function renderFc(){
   if(!fcCards.length){closeFc();return;}
   fcFlipped=false;const card=fcCards[fcIdx];
   const cardEl=document.querySelector('.fc-card');
   if(cardEl)cardEl.classList.remove('flipped');
   document.getElementById('fcProg').textContent=(fcIdx+1)+' / '+fcCards.length;
-  document.getElementById('fcWord').textContent=card.word;
-  document.getElementById('fcDef').textContent=card.def;
+  document.getElementById('fcWord').textContent=fcReverse?card.def:card.word;
+  document.getElementById('fcDef').textContent=fcReverse?card.word:card.def;
   document.getElementById('fcHint').textContent=fcEverFlipped?'': 'Toca para revelar →';
 }
 export function flipFc(){
@@ -167,7 +189,28 @@ export function renderSide(){
   const el=document.getElementById('scon');
   const wk=weekNavHtml();
   if(sTab==='vocab'){
-    const actions=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span class="side-act" onclick="toggleVAdd()">➕ Añadir palabra</span><span class="side-act" onclick="openFc()">🃏 Flashcards →</span></div>`;
+    if (srsReviewing && srsReviewCards.length) {
+      const v = srsReviewCards[srsReviewIdx];
+      el.innerHTML = `<div class="srs-review">
+        <div class="srs-hdr">📅 Repasando · ${srsReviewIdx+1}/${srsReviewCards.length}</div>
+        <div class="srs-word">${esc(v.word)}</div>
+        <div class="srs-def" id="srsDef" style="display:none;">${esc(v.def)}</div>
+        <div style="text-align:center;margin-top:10px;">
+          <button class="srs-reveal-btn" onclick="srsReveal()" id="srsRevealBtn">Mostrar →</button>
+        </div>
+        <div class="vadd-row" style="margin-top:8px;">
+          <button onclick="srsAnswer(false)" style="color:#d04040;border-color:#c05050;">✗ Otra vez</button>
+          <button onclick="srsAnswer(true)">✓ La sé</button>
+        </div>
+        <div style="text-align:center;margin-top:8px;">
+          <span class="side-act" onclick="closeSrsReview()">Terminar</span>
+        </div>
+      </div>`;
+      return;
+    }
+    const dueCount = srsDueCount(S.vocab);
+    const srsBadge = dueCount > 0 ? `<span style="background:rgba(201,168,76,.12);color:var(--gold);font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px;">${dueCount}</span><span class="side-act" onclick="startSrsReview()" style="margin-left:6px;">▶ Repasar</span>` : '';
+    const actions=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:4px;"><div><span class="side-act" onclick="toggleVAdd()">➕ Añadir palabra</span>${srsBadge}</div><span class="side-act" onclick="openFc()">🃏 Flashcards →</span></div>`;
     const form=vAddOpen?`<div class="vadd"><input id="vAddWord" placeholder="Palabra en español" autocomplete="off"><input id="vAddDef" placeholder="Significado (vacío = traducir)" autocomplete="off"><div class="vadd-row"><button onclick="submitVAdd(this)">Añadir</button><button onclick="toggleVAdd(false)">Cancelar</button></div></div>`:'';
     const items=S.vocab.filter(v=>inViewWeek(v.ts));
     if(!items.length){el.innerHTML=wk+actions+form+'<div class="edim">Las palabras aparecen mientras hablas…</div>';return;}

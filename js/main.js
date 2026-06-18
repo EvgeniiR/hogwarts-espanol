@@ -12,7 +12,7 @@ import { speak, speakFromBtn, setVoicePref, testVoice } from './tts.js';
 import { processDateChanges, updPtsUI, updStreakUI, awardPoints, pushLevelOutcome } from './progress.js';
 import { genDailyChallenges } from './challenges.js';
 import { sendMsg, selChar, selCharByName, updHeaderAll, showHints, useHint, renderMsgs, genStarter, retryLastMsg } from './chat.js';
-import { renderSide, setSTab, navWeek, toggleVAdd, submitVAdd, editVocab, cancelEditVocab, saveEditVocab, deleteVocab, editMistake, cancelEditMistake, saveEditMistake, deleteMistake, openFc, closeFc, flipFc, navFc, handleSelUp, hideSelBtn, addSelectionToVocab } from './sidepanel.js';
+import { renderSide, setSTab, navWeek, toggleVAdd, submitVAdd, editVocab, cancelEditVocab, saveEditVocab, deleteVocab, editMistake, cancelEditMistake, saveEditMistake, deleteMistake, openFc, closeFc, flipFc, navFc, toggleFcReverse, handleSelUp, hideSelBtn, addSelectionToVocab, startSrsReview, srsReveal, srsAnswer, closeSrsReview } from './sidepanel.js';
 import { openGames, closeGames, setGameTab, setGameDifficulty, genDictation, genTranslation, hintDictation, checkDictation, skipDictation, hintTranslation, checkTranslation, skipTranslation, genOrderGame, checkOrder, hintOrder, skipOrder, genMemory, skipMemory, flipMemCard, cleanupMemory, setRandomMode, renderMemoryLobby } from './games.js';
 import { openSettings, closeSettings, setSettingsTab, renderSettings, setModelPref, setTtsOff, openAchievements, closeAchievements, renderAchievements, validateProviderKey, clearLog } from './settings.js';
 import { openErrExplain, closeErrExplain, askErrFollowUp, clickErrSuggestion } from './error-explain.js';
@@ -214,10 +214,12 @@ Object.assign(window,{
   // Vocab / mistake edit
   editVocab, cancelEditVocab, saveEditVocab, deleteVocab,
   editMistake, cancelEditMistake, saveEditMistake, deleteMistake,
+  // SRS review
+  startSrsReview, srsReveal, srsAnswer, closeSrsReview,
   // Vocab selection from chat
   addSelectionToVocab,
   // Flashcards
-  openFc, closeFc, flipFc, navFc,
+  openFc, closeFc, flipFc, navFc, toggleFcReverse,
   // Achievements overlay
   openAchievements, closeAchievements,
   // Settings overlay
