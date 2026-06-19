@@ -112,6 +112,7 @@ function restoreSession() {
 export function closeReading() {
   window.speechSynthesis.cancel();
   document.getElementById('readingOv').style.display = 'none';
+  const rp=document.getElementById('selReadingPopup');if(rp)rp.style.display='none';
   if (quizKeyHandler) { document.removeEventListener('keydown', quizKeyHandler); quizKeyHandler = null; }
   readingSession.view = readingMode === 'quiz' ? 'quiz' : readingMode === 'recap' ? 'recap' : currentArticleId ? 'article' : readingSession.source ? 'headlines' : 'lobby';
   readingSession.articleId = currentArticleId;
@@ -224,7 +225,10 @@ async function fetchRSSHeadlines(rssUrl, source, reqId) {
   return data.items.slice(0, 8).map(item => {
     const text = (item.content || item.description || '')
       .replace(/&nbsp;/g, ' ')
-      .replace(/<[^>]*>/g, '\n')
+      .replace(/<\/?(br|p|div|h[1-6]|li|ul|ol|blockquote|hr)[^>]*>/gi, '\n')
+      .replace(/<[^>]*>/g, '')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n[ \t]+/g, '\n')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
     return {

@@ -31,6 +31,12 @@ async function lookupDefinition(word){
     return txt.trim().replace(/^["']|["']$/g,'');
   }catch(e){return '';}
 }
+async function translateForReading(text){
+  try{
+    const txt=await callLLM('Eres un traductor español-inglés. Traduce al inglés de forma concisa y natural, sin explicaciones.',[{role:'user',content:text}],120,{json:false,temperature:0.2});
+    return txt.trim().replace(/^["']|["']$/g,'');
+  }catch(e){return '';}
+}
 
 // ── Manual add form ───────────────────────────────────────────────────────────
 let vAddOpen=false;
@@ -50,24 +56,45 @@ export async function submitVAdd(btn){
 
 // ── Select-from-chat → vocab ───────────────────────────────────────────────
 let pendingSelection='';
-export function hideSelBtn(){const b=document.getElementById('selVocabBtn');if(b)b.style.display='none';pendingSelection='';}
+let pendingReadingWord='';
+let pendingReadingDef='';
+function hideReadingPopup(){const p=document.getElementById('selReadingPopup');if(p)p.style.display='none';pendingReadingWord='';pendingReadingDef='';}
+export function hideSelBtn(){const b=document.getElementById('selVocabBtn');if(b)b.style.display='none';pendingSelection='';hideReadingPopup();}
 export function handleSelUp(e){
   const btn=document.getElementById('selVocabBtn');
+  const rPopup=document.getElementById('selReadingPopup');
   if(!btn||btn.contains(e.target))return;
+  if(rPopup&&rPopup.contains(e.target))return;
   setTimeout(()=>{
     const sel=window.getSelection();
     const text=sel.toString().trim();
     const msgsEl=document.getElementById('msgs');
     const readingCard=document.getElementById('readingCard');
-    const inReading=readingCard && readingCard.contains(sel.anchorNode);
-    if(!text||sel.rangeCount===0||(!msgsEl||!msgsEl.contains(sel.anchorNode))&&!inReading){hideSelBtn();return;}
-    pendingSelection=text;
+    const inReading=readingCard&&readingCard.contains(sel.anchorNode);
+    const inMsgs=msgsEl&&msgsEl.contains(sel.anchorNode);
+    if(!text||sel.rangeCount===0||(!inMsgs&&!inReading)){hideSelBtn();return;}
     const rect=sel.getRangeAt(0).getBoundingClientRect();
-    const parentEl=inReading ? readingCard.querySelector('.reading-article-wrap')||readingCard : document.querySelector('.main');
-    const parentRect=parentEl.getBoundingClientRect();
-    btn.style.left=Math.max(4,rect.left-parentRect.left)+'px';
-    btn.style.top=Math.max(4,rect.top-parentRect.top-30)+'px';
-    btn.style.display='block';
+    if(inReading){
+      btn.style.display='none';
+      pendingReadingWord=text;pendingReadingDef='';
+      const transEl=document.getElementById('selReadingTrans');
+      if(transEl)transEl.innerHTML='<span class="srp-dot"></span><span class="srp-dot"></span><span class="srp-dot"></span>';
+      rPopup.style.left=Math.max(8,rect.left)+'px';
+      rPopup.style.top=Math.max(8,rect.top-48)+'px';
+      rPopup.style.display='flex';
+      translateForReading(text).then(def=>{
+        pendingReadingDef=def;
+        if(transEl&&rPopup.style.display!=='none')transEl.textContent=def||text;
+      });
+    }else{
+      if(rPopup)rPopup.style.display='none';
+      pendingSelection=text;
+      const parentEl=document.querySelector('.main');
+      const parentRect=parentEl.getBoundingClientRect();
+      btn.style.left=Math.max(4,rect.left-parentRect.left)+'px';
+      btn.style.top=Math.max(4,rect.top-parentRect.top-30)+'px';
+      btn.style.display='block';
+    }
   },10);
 }
 export async function addSelectionToVocab(){
@@ -78,6 +105,13 @@ export async function addSelectionToVocab(){
   addVocabWord(word,def);
   window.getSelection().removeAllRanges();
   showToast(`✨ "${word}" añadida al vocabulario`,'#2a5018','#7acc40');
+}
+export function addReadingSelToVocab(){
+  const word=pendingReadingWord,def=pendingReadingDef;
+  hideReadingPopup();
+  if(!word)return;
+  window.getSelection().removeAllRanges();
+  if(addVocabWord(word,def))showToast(`✨ "${word}" añadida al vocabulario`,'#2a5018','#7acc40');
 }
 
 // ── SRS Review ────────────────────────────────────────────────────────────────

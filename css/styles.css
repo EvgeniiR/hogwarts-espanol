@@ -99,6 +99,16 @@ textarea#ui::placeholder{color:#8b9bb8;}
 .vadd-row button.loading-btn{animation:loadingPulse 1s ease-in-out infinite;}
 .sel-vocab-btn{position:absolute;z-index:60;font-size:11px;color:var(--ink);background:var(--gold2);border:1px solid var(--bdg);border-radius:99px;padding:4px 11px;cursor:pointer;display:none;font-family:'Cinzel',Georgia,serif;box-shadow:0 2px 6px rgba(0,0,0,.4);}
 .sel-vocab-btn:hover{background:var(--gold);}
+.sel-reading-popup{position:fixed;z-index:400;display:none;flex-direction:row;align-items:flex-start;gap:8px;background:var(--gold2);border:1px solid var(--bdg);border-radius:10px;padding:8px 12px;box-shadow:0 2px 8px rgba(0,0,0,.5);font-family:'Cinzel',Georgia,serif;font-size:11px;color:var(--ink);max-width:min(500px,90vw);}
+.sel-reading-popup span{flex:1;opacity:.85;white-space:normal;word-break:break-word;line-height:1.5;}
+.sel-reading-popup button{background:var(--gold);border:1px solid var(--bdg);border-radius:50%;width:20px;height:20px;line-height:1;font-size:15px;padding:0;cursor:pointer;color:var(--ink);flex-shrink:0;margin-top:1px;}
+.sel-reading-popup button:hover{background:#b8930a;}
+.sel-reading-popup button[data-tip]{position:relative;}
+.sel-reading-popup button[data-tip]::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 5px);right:0;background:#1e0c04;color:var(--gold2);font-size:10px;white-space:nowrap;padding:3px 7px;border-radius:4px;pointer-events:none;opacity:0;transition:opacity .15s;}
+.sel-reading-popup button[data-tip]:hover::after{opacity:1;}
+.srp-dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ink);opacity:.6;animation:bonce 1s infinite;margin:0 1px;vertical-align:middle;}
+.srp-dot:nth-child(2){animation-delay:.2s;}
+.srp-dot:nth-child(3){animation-delay:.4s;}
 .typing-bb{display:flex;gap:4px;align-items:center;padding:2px 0;}
 .dot{width:5px;height:5px;border-radius:50%;background:#8b6914;animation:bonce 1.2s infinite;}
 .dot:nth-child(2){animation-delay:.2s;}.dot:nth-child(3){animation-delay:.4s;}
@@ -330,7 +340,7 @@ textarea#ui::placeholder{color:#8b9bb8;}
 .ee-loading .dot:nth-child(3){animation-delay:.4s;}
 
 /* ── El Profeta: reading comprehension ──────────────────────────────── */
-#readingCard{display:flex;flex-direction:column;gap:0;overflow-y:auto;}
+#readingCard{display:flex;flex-direction:column;gap:0;overflow-y:auto;width:clamp(340px,90vw,900px);max-height:90%;}
 .reading-lobby{text-align:center;padding:20px 16px 12px;}
 .reading-lobby-title{font-family:'Cinzel',Georgia,serif;font-size:16px;color:var(--ink);margin-bottom:4px;}
 .reading-lobby-sub{font-size:11px;color:#7a5520;margin-bottom:14px;font-style:italic;}
