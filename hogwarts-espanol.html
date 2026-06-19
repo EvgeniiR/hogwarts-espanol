@@ -90,6 +90,11 @@
   <button class="fc-close" onclick="closeErrExplain()" aria-label="Cerrar">✕</button>
 </div>
 
+<div class="settings-ov" id="readingOv">
+  <div class="settings-card settings-card--games" id="readingCard"></div>
+  <button class="fc-close" onclick="closeReading()" aria-label="Cerrar">✕</button>
+</div>
+
 <div class="splash" id="splash">
   <svg width="76" height="76" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
     <circle cx="40" cy="40" r="36" fill="none" stroke="#c9a84c" stroke-width="1.5"/>
@@ -143,6 +148,7 @@
       <button class="abtn" id="skipBtn" onclick="skipSong()" aria-label="Siguiente canción" title="Siguiente canción"><i class="ti ti-player-skip-forward"></i></button>
       <button class="abtn" onclick="openGames()" aria-label="Minijuegos" title="Minijuegos"><i class="ti ti-target-arrow"></i></button>
       <button class="abtn" onclick="openAchievements()" aria-label="Logros" title="Logros"><i class="ti ti-trophy"></i></button>
+      <button class="abtn" onclick="openReading()" aria-label="El Profeta" title="El Profeta"><i class="ti ti-book"></i></button>
       <button class="abtn" onclick="openSettings()" aria-label="Ajustes" title="Ajustes"><i class="ti ti-settings"></i></button>
       <button class="abtn" id="sideBtn" onclick="toggleSide()" aria-label="Panel lateral" title="Panel lateral"><i class="ti ti-layout-sidebar-right"></i></button>
     </div>

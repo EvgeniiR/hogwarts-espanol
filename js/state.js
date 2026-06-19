@@ -22,6 +22,7 @@ export let S = {
   repairProvider:'groq',
   lastChar:'hermione',
   currentHints:{},
+  readingArticles:[],readingCompleted:0,readingCompletedIds:{},
   version:2
 };
 
@@ -50,7 +51,8 @@ export async function saveS(){
     const d={...S,
       hist:Object.fromEntries(Object.entries(S.hist).map(([k,v])=>[k,v.filter(m=>!m.error).slice(-25)])),
       grammar:S.grammar.slice(-80),mistakes:S.mistakes.slice(-60),vocab:S.vocab.slice(-200),
-      challenges:pruneOldDates(S.challenges,14),challengeDone:pruneOldDates(S.challengeDone,14)};
+      challenges:pruneOldDates(S.challenges,14),challengeDone:pruneOldDates(S.challengeDone,14),
+      readingArticles:(S.readingArticles||[]).slice(-10)};
     await kvSet('hp_v1',JSON.stringify(d));
   }catch(e){if(_onSaveError)_onSaveError(e);}
 }
@@ -87,6 +89,9 @@ export async function loadS(){
       // we have of past completions.
       const doneNow=Object.values(S.challengeDone).filter(Boolean).length;
       S.challengesCompleted=Math.max(d.challengesCompleted||0,(S.achievements.challenges||0),doneNow);
+      if(d.readingArticles) S.readingArticles = d.readingArticles;
+      if(d.readingCompleted !== undefined) S.readingCompleted = d.readingCompleted;
+      if(d.readingCompletedIds) S.readingCompletedIds = d.readingCompletedIds;
     }
   }catch(e){console.warn('loadS falló — estado corrupto o almacenamiento inaccesible',e);}
   S.version=2;

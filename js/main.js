@@ -17,6 +17,7 @@ import { openGames, closeGames, setGameTab, setGameDifficulty, genDictation, gen
 import { openSettings, closeSettings, setSettingsTab, renderSettings, setModelPref, setTtsOff, openAchievements, closeAchievements, renderAchievements, validateProviderKey, clearLog } from './settings.js';
 import { openErrExplain, closeErrExplain, askErrFollowUp, clickErrSuggestion } from './error-explain.js';
 import { compareModels } from './model-compare.js';
+import { openReading, closeReading, selectReadingSource, selectArticle, startQuiz, startRecap, answerQuiz, submitRecap, returnToLobby, setReadingDiff } from './reading.js';
 import { showToast, aResize } from './helpers.js';
 
 // Portrait injection
@@ -165,7 +166,7 @@ document.addEventListener('touchend',handleSelUp);
 document.getElementById('msgs').addEventListener('scroll',hideSelBtn);
 document.addEventListener('keydown',e=>{
   if(e.key==='Tab'){
-    const overlays=['settingsOv','achievementsOv','gamesOv','errExplainOv','fcOv'];
+    const overlays=['settingsOv','achievementsOv','gamesOv','errExplainOv','fcOv','readingOv'];
     for(const id of overlays){
       const ov=document.getElementById(id);
       if(ov&&ov.style.display==='flex'){
@@ -190,7 +191,7 @@ document.addEventListener('keydown',e=>{
     }
   }
   if(e.key!=='Escape')return;
-  const pairs=[['settingsOv',closeSettings],['achievementsOv',closeAchievements],['gamesOv',closeGames],['errExplainOv',closeErrExplain],['fcOv',closeFc]];
+  const pairs=[['settingsOv',closeSettings],['achievementsOv',closeAchievements],['gamesOv',closeGames],['errExplainOv',closeErrExplain],['fcOv',closeFc],['readingOv',closeReading]];
   for(const [id,fn] of pairs){if(document.getElementById(id)?.style.display==='flex'){fn();break;}}
 });
 
@@ -273,4 +274,8 @@ Object.assign(window,{
   // Textarea keyboard handler
   hKey: (e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}},
   aResize,
+  // Reading comprehension (El Profeta)
+  openReading, closeReading, selectReadingSource, selectArticle,
+  startQuiz, startRecap, answerQuiz, submitRecap, returnToLobby,
+  setReadingDiff,
 });
