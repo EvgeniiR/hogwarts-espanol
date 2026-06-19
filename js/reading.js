@@ -112,6 +112,7 @@ function restoreSession() {
 export function closeReading() {
   window.speechSynthesis.cancel();
   document.getElementById('readingOv').style.display = 'none';
+  if (quizKeyHandler) { document.removeEventListener('keydown', quizKeyHandler); quizKeyHandler = null; }
   readingSession.view = readingMode === 'quiz' ? 'quiz' : readingMode === 'recap' ? 'recap' : currentArticleId ? 'article' : readingSession.source ? 'headlines' : 'lobby';
   readingSession.articleId = currentArticleId;
   readingSession.quizIdx = quizIdx;

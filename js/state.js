@@ -46,16 +46,19 @@ export function pruneOldDates(obj,days){
 
 let _onSaveError=null;
 export function onSaveError(cb){_onSaveError=cb;}
+export const HIST_CAP = 25;
 
 export async function saveS(){
   try{
     const d={...S,
-      hist:Object.fromEntries(Object.entries(S.hist).map(([k,v])=>[k,v.filter(m=>!m.error).slice(-25)])),
+      hist:Object.fromEntries(Object.entries(S.hist).map(([k,v])=>[k,v.filter(m=>!m.error).slice(-HIST_CAP)])),
       grammar:S.grammar.slice(-80),mistakes:S.mistakes.slice(-60),vocab:S.vocab.slice(-200),
       challenges:pruneOldDates(S.challenges,14),challengeDone:pruneOldDates(S.challengeDone,14),
       readingArticles:(S.readingArticles||[]).slice(-10)};
+    const keptIds=new Set((S.readingArticles||[]).map(a=>a.id));
+    d.readingCompletedIds=Object.fromEntries(Object.entries(S.readingCompletedIds||{}).filter(([id])=>keptIds.has(id)));
     await kvSet('hp_v1',JSON.stringify(d));
-  }catch(e){if(_onSaveError)_onSaveError(e);}
+  }catch(e){console.error('saveS failed',e);if(_onSaveError)_onSaveError(e);}
 }
 
 export async function loadS(){
@@ -66,8 +69,8 @@ export async function loadS(){
       if(d.vocab)S.vocab=d.vocab;if(d.mistakes)S.mistakes=d.mistakes;if(d.grammar)S.grammar=d.grammar;
       if(d.weeklyPts!==undefined)S.weeklyPts=d.weeklyPts;else if(d.pts)S.weeklyPts=d.pts;
       if(d.dailyEarned!==undefined)S.dailyEarned=d.dailyEarned;
-      if(d.currentWeek)S.currentWeek=d.currentWeek;
-      if(d.lastActiveDate)S.lastActiveDate=d.lastActiveDate;
+      if(d.currentWeek!==undefined)S.currentWeek=d.currentWeek;
+      if(d.lastActiveDate!==undefined)S.lastActiveDate=d.lastActiveDate;
       if(d.totalMsgs!==undefined)S.totalMsgs=d.totalMsgs;if(d.streak)S.streak=d.streak;
       if(d.level!==undefined)S.level=d.level;if(d.moods)S.moods=d.moods;
       if(d.hist)S.hist={hermione:[],dumbledore:[],hagrid:[],snape:[],...d.hist};
@@ -79,8 +82,8 @@ export async function loadS(){
       if(d.lifetimePts!==undefined)S.lifetimePts=d.lifetimePts;
       if(d.achievements)S.achievements={streak:0,msgs:0,vocab:0,challenges:0,pts:0,...d.achievements};
       if(d.levelWindow)S.levelWindow=d.levelWindow;
-      if(d.gameDifficulty)S.gameDifficulty=d.gameDifficulty;
-      if(d.readingDifficulty)S.readingDifficulty=d.readingDifficulty;
+      if(d.gameDifficulty!==undefined)S.gameDifficulty=d.gameDifficulty;
+      if(d.readingDifficulty!==undefined)S.readingDifficulty=d.readingDifficulty;
       if(d.musicOff!==undefined)S.musicOff=d.musicOff;
       if(d.ttsOff!==undefined)S.ttsOff=d.ttsOff;
       if(d.repairProvider!==undefined)S.repairProvider=d.repairProvider;

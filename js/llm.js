@@ -59,46 +59,40 @@ export async function callLLM(systemPrompt, messages, maxTokens){
 }
 
 
-async function callGroq(systemPrompt, messages, maxTokens, modelOverride){
-  const msgs=[];
-  if(systemPrompt)msgs.push({role:'system',content:systemPrompt});
+function _buildMessages(systemPrompt, messages) {
+  const msgs = [];
+  if (systemPrompt) msgs.push({ role: 'system', content: systemPrompt });
   msgs.push(...messages);
-  const res=await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${R.keys.groq}`},
-    body:JSON.stringify({model:modelOverride||S.modelPrefs.groq||'llama-3.3-70b-versatile',messages:msgs,max_tokens:maxTokens,temperature:0.9,response_format:{type:'json_object'}})
-  });
-  const data=await res.json();
-  throwIfBad(res,data);
-  return {text:data.choices?.[0]?.message?.content||'',usage:{in:data.usage?.prompt_tokens||0,out:data.usage?.completion_tokens||0}};
+  return msgs;
 }
 
-async function callOpenAI(systemPrompt, messages, maxTokens, modelOverride){
-  const msgs=[];
-  if(systemPrompt)msgs.push({role:'system',content:systemPrompt});
-  msgs.push(...messages);
-  const res=await fetchWithTimeout('https://api.openai.com/v1/chat/completions',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${R.keys.openai}`},
-    body:JSON.stringify({model:modelOverride||S.modelPrefs.openai||'gpt-4.1-mini',messages:msgs,max_tokens:maxTokens,temperature:0.9})
+async function _callProvider(endpoint, key, body, modelOverride, defaultModel, modelPrefKey) {
+  const res = await fetchWithTimeout(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+    body: JSON.stringify({ ...body, model: modelOverride || S.modelPrefs[modelPrefKey] || defaultModel })
   });
-  const data=await res.json();
-  throwIfBad(res,data);
-  return {text:data.choices?.[0]?.message?.content||'',usage:{in:data.usage?.prompt_tokens||0,out:data.usage?.completion_tokens||0}};
+  const data = await res.json();
+  throwIfBad(res, data);
+  return { text: data.choices?.[0]?.message?.content || '', usage: { in: data.usage?.prompt_tokens || 0, out: data.usage?.completion_tokens || 0 } };
 }
 
-async function callDeepseek(systemPrompt, messages, maxTokens, modelOverride){
-  const msgs=[];
-  if(systemPrompt)msgs.push({role:'system',content:systemPrompt});
-  msgs.push(...messages);
-  const res=await fetchWithTimeout('https://api.deepseek.com/chat/completions',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${R.keys.deepseek}`},
-    body:JSON.stringify({model:modelOverride||S.modelPrefs.deepseek||'deepseek-v4-flash',messages:msgs,max_tokens:maxTokens,temperature:0.9,thinking:{type:'disabled'},response_format:{type:'json_object'}})
-  });
-  const data=await res.json();
-  throwIfBad(res,data);
-  return {text:data.choices?.[0]?.message?.content||'',usage:{in:data.usage?.prompt_tokens||0,out:data.usage?.completion_tokens||0}};
+async function callGroq(systemPrompt, messages, maxTokens, modelOverride) {
+  return _callProvider('https://api.groq.com/openai/v1/chat/completions', R.keys.groq,
+    { messages: _buildMessages(systemPrompt, messages), max_tokens: maxTokens, temperature: 0.9, response_format: { type: 'json_object' } },
+    modelOverride, 'llama-3.3-70b-versatile', 'groq');
+}
+
+async function callOpenAI(systemPrompt, messages, maxTokens, modelOverride) {
+  return _callProvider('https://api.openai.com/v1/chat/completions', R.keys.openai,
+    { messages: _buildMessages(systemPrompt, messages), max_tokens: maxTokens, temperature: 0.9 },
+    modelOverride, 'gpt-4.1-mini', 'openai');
+}
+
+async function callDeepseek(systemPrompt, messages, maxTokens, modelOverride) {
+  return _callProvider('https://api.deepseek.com/chat/completions', R.keys.deepseek,
+    { messages: _buildMessages(systemPrompt, messages), max_tokens: maxTokens, temperature: 0.9, thinking: { type: 'disabled' }, response_format: { type: 'json_object' } },
+    modelOverride, 'deepseek-v4-flash', 'deepseek');
 }
 
 // Direct model call — bypasses callLLM router and log. Used for model comparison

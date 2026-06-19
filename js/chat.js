@@ -1,7 +1,7 @@
 // ── CHAT ───────────────────────────────────────────────────────────────────
 // sendMsg, conversation starters, message rendering, character selection,
 // mood updates, owl animation, hints, typing indicator.
-import { S, R, saveS } from './state.js';
+import { S, R, saveS, HIST_CAP } from './state.js';
 import { chars, getSys, LEVELS } from './characters.js';
 import { SVG } from './portraits.js';
 import { callLLM } from './llm.js';
@@ -9,7 +9,7 @@ import { repairJSON } from './llm.js';
 import { awardPoints, updPtsUI, updStreakUI, checkAchievements, checkLevelUp, pushLevelOutcome } from './progress.js';
 import { playRecv, playSend, playVocab } from './audio.js';
 import { speak } from './tts.js';
-import { esc, mdInline, showToast, friendlyError, extractJSON } from './helpers.js';
+import { esc, mdInline, showToast, friendlyError, extractJSON, aResize } from './helpers.js';
 import { renderChallengeUI, genDailyChallenges } from './challenges.js';
 import { renderSide, vocabExists } from './sidepanel.js';
 
@@ -113,8 +113,7 @@ export function renderHints(hints){
   el.innerHTML=hints.length?hints.map(h=>`<span class="hchip" onclick="useHint(this)">${esc(h)}</span>`).join(''):'<span class="hints-empty">Las sugerencias aparecerán aquí…</span>';
 }
 export function useHint(el){
-  const ta=document.getElementById('ui');ta.value=el.textContent;
-  const {aResize}=window;if(aResize)aResize(ta);
+  const ta=document.getElementById('ui');  ta.value=el.textContent;aResize(ta);
   renderHints([]);ta.focus();
 }
 
@@ -239,7 +238,7 @@ export async function sendMsg(){
   let suggestions=[];
   try{
     let hist=S.hist[R.cur].filter(m=>!m.error);
-    let msgs=hist.slice(-25).map(m=>({role:m.role,content:m.content}));
+    let msgs=hist.slice(-HIST_CAP).map(m=>({role:m.role,content:m.content}));
     msgs=msgs.filter((m,i)=>i===msgs.length-1||m.role!==msgs[i+1].role);
     const firstUser=msgs.findIndex(m=>m.role==='user');if(firstUser>0)msgs=msgs.slice(firstUser);
     const raw=await callLLM(getSys(R.cur),msgs,2500);

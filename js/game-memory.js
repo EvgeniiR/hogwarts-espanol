@@ -3,7 +3,7 @@ import { esc, shuffleArray, extractJSON, showToast } from './helpers.js';
 import { LEVELS } from './characters.js';
 import { awardPoints, pushLevelOutcome } from './progress.js';
 import { playCorrect, playIncorrect } from './audio.js';
-import { game, diffSelectorHtml, award } from './game-core.js';
+import { game, diffSelectorHtml, award, GAME_DIFF } from './game-core.js';
 import { ParticleEngine } from './particles.js';
 import { srsPromote } from './srs.js';
 import { callLLM } from './llm.js';
@@ -89,7 +89,7 @@ function checkPair() {
     awardPoints(1);
     const esCard = c1.type === 'es' ? c1 : c2;
     const ve = S.vocab.find(x => x.word.toLowerCase() === esCard.text.toLowerCase());
-    if (ve) srsPromote(ve);
+    if (ve) { srsPromote(ve); saveS(); }
     flippedIndices = [];
     isProcessing = false;
     const pEl = document.getElementById('memPairs');
@@ -175,7 +175,7 @@ export async function genMemory() {
   stopTimer();
   cards = []; flippedIndices = []; matchedPairs = 0; timerStarted = false; seconds = 0; isProcessing = false; isPreviewing = false;
   const reqId = ++memReqId;
-  const pairs = S.gameDifficulty === 'easy' ? 4 : S.gameDifficulty === 'medium' ? 6 : 8;
+  const pairs = GAME_DIFF[S.gameDifficulty].pairs;
   let picked;
   if (randomMode) {
     document.getElementById('gamesContent').innerHTML = diffSelectorHtml() + '<div class="mem-loading">Generando vocabulario aleatorio</div>';

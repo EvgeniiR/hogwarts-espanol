@@ -85,7 +85,7 @@ function showSplashAuth(){
   btn.classList.remove('loading');
   btn.textContent='Guardar';
   btn.disabled=false;
-  btn.setAttribute('onclick','saveSplashAuth()');
+  btn.onclick = saveSplashAuth;
   // Pre-fill inputs and indicators for all providers.
   ['groq','openai','deepseek'].forEach(p=>{
     if(R.keys[p]){
@@ -108,7 +108,7 @@ function hideSplashAuth(){
   const btn=document.getElementById('splashBtn');
   btn.classList.remove('loading');
   btn.textContent='Accio Español →';
-  btn.setAttribute('onclick','enterApp()');
+  btn.onclick = enterApp;
   document.getElementById('mainApp').style.display='flex';
 }
 

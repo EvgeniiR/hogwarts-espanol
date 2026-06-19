@@ -94,7 +94,7 @@ export function processDateChanges(){
     showToast('🗓 ¡Nueva semana! Puntos semanales reiniciados. ¡Tú puedes!','#1a2a50','#6090e0');
     updPtsUI();
   }
-  checkAchievements();
+  checkAchievements();saveS();
 }
 
 // ── Achievements ────────────────────────────────────────────────────────────
