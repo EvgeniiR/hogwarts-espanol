@@ -251,8 +251,15 @@ async function generateLLMArticles() {
 REGLAS DEL CUESTIONARIO: 4 preguntas que evalúen comprensión de matices y detalles concretos, no lo obvio. Opciones incorrectas plausibles pero distinguibles para un lector atento. El campo "correct" es el índice entero basado en CERO (0, 1, 2 o 3) de la opción correcta.`;
   const user = `Generas UN SOLO artículo para "El Profeta". No escribas introducciones, listas ni múltiples historias — uno solo. EXTENSIÓN EXACTA: ${dc.words} palabras. Título: provocador, estilo tabloide mágico (nunca descriptivo-académico). Estructura narrativa: gancho inicial potente → desarrollo con tensión creciente → cierre memorable. Respeta el canon de Harry Potter. Elige UN tema: personajes emblemáticos, hechizos legendarios, criaturas fascinantes, lugares ocultos de Hogwarts, eventos históricos del mundo mágico, clases memorables, pociones célebres, objetos encantados, duelos épicos, secretos del Ministerio, historias de las casas o misterios jamás resueltos. Responde SOLO con JSON sin texto adicional: {"article":{"title":"...","text":"...","quiz":[{"q":"...","options":["A","B","C","D"],"correct":0}]}}`;
 
-  const raw = await callLLM(sys, [{ role: 'user', content: user }], dc.tokens);
-  const parsed = extractJSON(raw);
+  // Article + quiz in one large JSON (up to 4000 tokens) is the most
+  // truncation-prone call in the app. If the first parse fails, regenerate once
+  // before surfacing the error to the caller's retry UI.
+  let parsed;
+  try {
+    parsed = extractJSON(await callLLM(sys, [{ role: 'user', content: user }], dc.tokens));
+  } catch (e) {
+    parsed = extractJSON(await callLLM(sys, [{ role: 'user', content: user }], dc.tokens));
+  }
   const a = parsed.article || {};
   return [{
     id: 'r_magico_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
@@ -302,7 +309,7 @@ async function generateQuizForArticle(article) {
   const dc = DIFF_CONFIG[article.difficulty || S.readingDifficulty];
   const sys = `Eres un profesor de español. Generas preguntas de comprensión lectora. ${dc.quizInstr}.`;
   const user = `Basado en este artículo en español, genera 4 preguntas de opción múltiple con 4 opciones cada una. La opción correcta debe estar claramente basada en el texto. Responde SOLO con JSON: {"quiz":[{"q":"pregunta","options":["A","B","C","D"],"correct":0}]}. Artículo:\n\n${article.text.substring(0, 4000)}`;
-  const raw = await callLLM(sys, [{ role: 'user', content: user }], 1500);
+  const raw = await callLLM(sys, [{ role: 'user', content: user }], 1500, { temperature: 0.2 });
   const parsed = extractJSON(raw);
   if (parsed.quiz && parsed.quiz.length) {
     article.quiz = parsed.quiz;
@@ -508,8 +515,8 @@ export async function submitRecap() {
 
   try {
     const sys = 'Eres un profesor de español. Evalúas la comprensión lectora de un estudiante basándote en su resumen. Sé justo pero exigente. Responde SOLO con JSON.';
-    const user = `Artículo:\n${article.text.substring(0, 4000)}\n\nResumen del estudiante:\n${text}\n\nEvalúa el resumen. Responde SOLO con JSON: {"score":0-1,"feedback":"breve comentario en español (2-3 frases)","missedKeyPoints":["punto clave no mencionado"]}`;
-    const raw = await callLLM(sys, [{ role: 'user', content: user }], 1000);
+    const user = `Artículo:\n${article.text.substring(0, 4000)}\n\nResumen del estudiante:\n${text}\n\nEvalúa el resumen. Responde SOLO con JSON: {"score":0.85,"feedback":"breve comentario en español (2-3 frases)","missedKeyPoints":["punto clave no mencionado"]}`;
+    const raw = await callLLM(sys, [{ role: 'user', content: user }], 1000, { temperature: 0.2 });
     if (reqId !== readingReqId) return;
     const parsed = extractJSON(raw);
     const score = Math.max(0, Math.min(1, parsed.score || 0));

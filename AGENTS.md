@@ -204,7 +204,7 @@ The HTML has ~51 `onclick="fnName()"` attributes. Module scope is not global, so
 | Hagrid    | Enthusiastic, warm, animal-obsessed (richer vocab) | 4 | `chars.hagrid` |
 | Snape     | Sarcastic, corrects everything, no mercy | 6 | `chars.snape` |
 
-System prompts are assembled at call time by `getSys(k)` in `characters.js`, which uses a single format for all providers (Groq/OpenAI/DeepSeek — all are OpenAI-compatible and Groq+DeepSeek enforce JSON at the API level via `response_format:json_object`). Each character stores a `persona` (with a `{{LV}}` placeholder) and a JSON `shape`; the shared rules — `SCORING_RULE` (anti-farming: `points:0` for non-effort but **no** mood punishment), `CONVO_RULE` (be proactive, end with a question), `OPTIONS_RULE`, and `VARIETY_RULE` (anti-repetition) — live **once** in `characters.js`. `buildSys(persona,shape)` assembles the prompt; `getSys(k)` appends the daily-challenge line **only if the challenge for that character is not yet completed** (saves tokens). Reply-suggestion chips are rendered via `renderHints()`/`#hintsR` UI from the LLM `options` field and are **persisted** in `S.currentHints` per character (saved in `sendMsg` and `genStarter`; restored on `selChar`/page reload). Static hints (`chars[k].hints`) are shown by `showHints()` as a fallback when no persisted hints exist for the character. `genStarter` seeds the user turn with a random HP scenario (`SEEDS` array in `chat.js`) so openers vary across resets.
+System prompts are assembled at call time by `getSys(k)` in `characters.js`, which uses a single format for all providers (Groq/OpenAI/DeepSeek — all are OpenAI-compatible and Groq+DeepSeek enforce JSON at the API level via `response_format:json_object`). Each character stores a `persona` (with a `{{LV}}` placeholder) and a JSON `shape`; the shared rules — `SCORING_RULE` (anti-farming: `points:0` for non-effort but **no** mood punishment) and `CONVO_RULE` (be proactive, end with a question) — live **once** in `characters.js`. `buildSys(persona,shape)` assembles the prompt; `getSys(k)` appends the daily-challenge line **only if the challenge for that character is not yet completed** (saves tokens). Reply-suggestion chips are rendered via `renderHints()`/`#hintsR` UI from the LLM `options` field and are **persisted** in `S.currentHints` per character (saved in `sendMsg` and `genStarter`; restored on `selChar`/page reload). Static hints (`chars[k].hints`) are shown by `showHints()` as a fallback when no persisted hints exist for the character. `genStarter` seeds the user turn with a random HP scenario (`SEEDS` array in `chat.js`) so openers vary across resets.
 
 ## LLM providers
 
@@ -212,13 +212,17 @@ System prompts are assembled at call time by `getSys(k)` in `characters.js`, whi
 |----------|-----------------|---------------|-------|
 | Groq | `R.keys.groq` | `llama-3.3-70b-versatile` | OpenAI-compatible. `response_format:{type:'json_object'}` enforces valid JSON at API level. |
 | DeepSeek | `R.keys.deepseek` | `deepseek-v4-flash` | OpenAI-compatible. Thinking mode ON by default — must set `thinking:{type:'disabled'}`. JSON enforced via `response_format`. |
-| OpenAI | `R.keys.openai` | `gpt-4.1-mini` | OpenAI-compatible. |
+| OpenAI | `R.keys.openai` | `gpt-4.1-mini` | OpenAI-compatible. `response_format:{type:'json_object'}` enforced (prompts contain "JSON" as the API requires). |
 
-All three providers use `fetchWithTimeout` (30s) defined in `llm.js`. `AbortError` is non-retryable. Groq and DeepSeek use `temperature:0.9` with `response_format:{type:'json_object'}`; OpenAI uses `temperature:0.9`.
+All three providers use `fetchWithTimeout` (30s) defined in `llm.js` and `response_format:{type:'json_object'}`. `isRetryable` bails on hard 4xx (400/401/403/404/422) and `AbortError`; retries 429/5xx/network with `[1s,2s]` backoff.
+
+**Per-call temperature:** `callLLM(sys, msgs, maxTokens, {temperature})` — defaults to `0.9` (creative). Deterministic JSON calls pass `{temperature:0.2}`: Q2 analysis, Q2.5 summary, Q3 options (`chat.js`), translation grading (`game-translation.js`), quiz generation + recap scoring (`reading.js`). Creative calls keep `0.9`: Q1 conversation, starter, translation-phrase generation, article generation, daily challenges.
+
+**Per-call `response_format`:** `callLLM(sys, msgs, maxTokens, {json})` — `json` defaults to **`true`** (sends `response_format:{type:'json_object'}`). The three calls that expect **plain text** pass `{json:false}` and must NOT set it: dictation sentence (`game-dictation.js`), word-order headline (`game-order.js`), dictionary lookup (`sidepanel.js`, also `temperature:0.2`). Forcing json_object on these makes Groq/OpenAI/DeepSeek 400 (they require the word "json" in the prompt) or wrap the answer in a JSON object the caller then uses raw.
 
 ## Daily challenges
 
-`CHALLENGE_PROMPT` in `challenges.js`: single batch LLM call → `S.challenges[today]` keyed by ISO date. Each challenge: `{challenge, focus, exampleOpener}`. Done: `S.challengeDone['charKey_YYYY-MM-DD']` (pruned 14d) + `S.challengesCompleted` (persistent, never pruned). Challenge is only injected into the LLM system prompt via `getSys()` when **not yet completed** for that character (token saving). When a challenge is completed, the `.chal` div is hidden entirely (not just relabeled).
+`CHALLENGE_SYS` + `CHALLENGE_USER` in `challenges.js`: single batch LLM call → `S.challenges[today]` keyed by ISO date. Each challenge: `{challenge, focus, exampleOpener}`. Done: `S.challengeDone['charKey_YYYY-MM-DD']` (pruned 14d) + `S.challengesCompleted` (persistent, never pruned). Challenge is only injected into the LLM system prompt via `getSys()` when **not yet completed** for that character (token saving). When a challenge is completed, the `.chal` div is hidden entirely (not just relabeled).
 
 ## Settings / overlays
 
@@ -299,7 +303,7 @@ Four games, each in its own file. All share engine state from `game-core.js`:
 - **Boolean state in loadS()** — use `!==undefined` check, not truthiness. `if(d.field)` silently skips `false` and `0`.
 - **New `onclick` in HTML** — must add matching `window.X = fn` in `js/main.js`'s `Object.assign` block
 - **Circular imports** — `state.js`, `helpers.js`, and `storage.js` are leaf modules; keep them dependency-free. `game-core.js` is also a leaf; `game-*.js` files import engine primitives from it, never vice versa. `games.js` is a pure router that re-exports game functions — `game-*.js` files must not import from `games.js`.
-- **API history cap** — `sendMsg()` slices to `.slice(-25)` before every call; don't add extra slicing
+- **API history cap** — `sendMsg()` slices to `.slice(-8)` for Q1 context (last 4 turns), not the full 25-message storage cap. Summaries from Q2.5 replace raw assistant text in Q1 context. Don't add extra slicing or change the context format.
 - **`R.loading`** — set in `chat.js` `sendMsg()`; guards against double-submit; do not reset elsewhere
 - **Focus trap** — `main.js` keydown handler traps Tab within open overlays (settings, games, achievements, error explain, flashcards); add new overlays to the `overlays` array if needed
 - **`speakFromBtn` rate** — `tts.js` `speakFromBtn` reads `btn.dataset.rate` (optional float). Use `data-rate="0.55"` on slow-speak buttons instead of inline `speak(x, 0.55)` calls.
@@ -311,6 +315,55 @@ After any JS change, run:
 bash scripts/check.sh
 ```
 This checks syntax (`node --check`) on every `js/*.js` file and verifies the ES module import graph resolves (excluding `main.js` which needs `window`).
+
+## LLM query architecture
+
+The conversation engine uses a 4-query pipeline. This design evolved through several iterations to solve systemic LLM reliability problems with Flash-class models (DeepSeek V4 Flash).
+
+### Current pipeline
+
+User message → 4 queries:
+
+| Query | Tokens | Source | Output | Runs |
+|-------|--------|--------|--------|------|
+| Q1 | 2500 | `getSys(k)` → `buildSys` | `reply, points, mood, challengeDone` | ‖ Q2 |
+| Q2 | 800 | `ANALYSIS_PROMPT` | `note, vocab, mistakes` | ‖ Q1 |
+| Q2.5 | 80 | `SUMMARY_PROMPT` | 1-sentence reply summary | ‖ Q3 |
+| Q3 | 200 | `OPTIONS_PROMPT` | 3 suggestion chips | ‖ Q2.5 |
+
+All prompts live in `js/characters.js`. The pipeline is implemented in `js/chat.js` `sendMsg()`.
+
+### Anti-patterns discovered (and why they fail)
+
+**1. One query for everything.** Reply + vocab + mistakes + note + options + scoring in a single JSON. The system prompt grew to ~2500 chars. After 3-4 turns the constraint collision (be unique + be proactive + produce valid JSON) caused empty or broken responses. **Split into 4 focused queries.**
+
+**2. Threatening language in system prompts.** "CRITICAL", "PROHIBIDO", "EXCLUSIVAMENTE". Flash models freeze or produce empty completions when given threatening language. **Use directives, not threats.** ("Responde solo con este JSON")
+
+**3. Variety constraints.** "No repitas frases, vocabulario, ejemplos ni la forma de tus preguntas" — mathematically impossible after 4 turns with a finite vocabulary and fixed character persona. The LLM's only escape is empty JSON. **Removed entirely.**
+
+**4. Assistant history in plain text.** Previous assistant replies appeared in Q1 context as plain Spanish text (e.g. "Evidentemente..."), but the system prompt demands JSON output. The model imitates the format it sees in history — conflicting with the JSON requirement. **Replaced assistant history with 1-sentence factual summaries** (built by Q2.5, prefixed with character name).
+
+**5. Cumulative history degrades JSON.** Sending 25 messages of raw roleplay text to a Flash model produces progressively worse JSON. **Capped Q1 context at last 4 turns, using summaries instead of raw text.**
+
+**6. Ambiguous scoring.** "points: 3-8" forces the model to invent a score every turn, causing hesitation. **Provide a default:** "5 por defecto, 0 para monosílabos, 8 para esfuerzo excepcional."
+
+**7. `challengeDone:false` in JSON template.** Some models anchor to example values rather than textual instructions. The `challengeDone:false` in the template can conflict with the challenge-completion instruction. **The template value is only a placeholder; the textual instruction overrides it.**
+
+### Patterns that work
+
+1. **One job per query.** Q1: conversation. Q2: analysis. Q3: suggestions. Never overload.
+
+2. **Short system prompts.** Q1 prompt is ~600 chars (was ~2500). Persona carries the character; rules are minimal.
+
+3. **Non-critical queries fail silently.** Q2, Q2.5, Q3 failures don't affect the conversation. Only Q1 failure shows an error to the user.
+
+4. **Empty arrays are explicit.** ANALYSIS_PROMPT: "arrays vacíos están bien si no hay nada que reportar." Never force the LLM to invent content. Vocab extraction is capped at **3 words/turn** (the most useful) — bounds side-panel flooding and Q2 truncation risk.
+
+5. **Summarize, don't replay.** Q1 context uses factual 1-sentence summaries from Q2.5, never raw roleplay text. Eliminates format conflicts and repetition patterns.
+
+6. **Parallel where possible.** Q1‖Q2 and Q2.5‖Q3 run via `Promise.all`. Total latency ~1.7s (was ~2.5s sequential).
+
+7. **`response_format: json_object`** at API level for all three providers (Groq, DeepSeek, OpenAI). JSON repair in `safeParse()` (`chat.js`) with multi-step + LLM repair before fallback — chat-only. The reading article generator (largest, most truncation-prone JSON) has its own one-shot regenerate-on-parse-failure retry in `generateLLMArticles()`.
 
 ## Deploy
 

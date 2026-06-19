@@ -1,8 +1,8 @@
 // ── CHAT ───────────────────────────────────────────────────────────────────
 // sendMsg, conversation starters, message rendering, character selection,
-// mood updates, owl animation, hints, typing indicator.
+// mood updates, hints, typing indicator.
 import { S, R, saveS, HIST_CAP } from './state.js';
-import { chars, getSys, LEVELS } from './characters.js';
+import { chars, getSys, LEVELS, OPTIONS_PROMPT, ANALYSIS_PROMPT, SUMMARY_PROMPT } from './characters.js';
 import { SVG } from './portraits.js';
 import { callLLM } from './llm.js';
 import { repairJSON } from './llm.js';
@@ -40,12 +40,6 @@ export function updProviderBadge(){
   const names={groq:'Groq',openai:'OpenAI',deepseek:'DeepSeek'};
   badge.textContent=names[R.provider]||R.provider;
   badge.dataset.pvd=R.provider;
-}
-
-export function flyOwl(){
-  const w=document.getElementById('owlW');const o=document.createElement('div');
-  o.className='owl';o.textContent='🦉';o.style.top=(12+Math.random()*18)+'%';
-  w.appendChild(o);setTimeout(()=>o.remove(),2400);
 }
 
 // ── Typing indicator ─────────────────────────────────────────────────────────
@@ -114,7 +108,7 @@ export function renderHints(hints){
 }
 export function useHint(el){
   const ta=document.getElementById('ui');  ta.value=el.textContent;aResize(ta);
-  renderHints([]);ta.focus();
+  ta.focus();
 }
 
 // Sanitize LLM reply suggestions → array of ≤3 trimmed non-empty strings (≤80 chars).
@@ -166,7 +160,7 @@ export async function safeParse(raw){
       const fixed = await repairJSON(raw);
       if(fixed)return extractJSON(fixed);
     }catch(e4){}
-    return{reply:raw.replace(/\{.*\}/s,'').trim()||raw,note:'',vocab:[],mistakes:[],options:[],points:0,mood:2};
+    return{reply:raw.replace(/\{.*\}/s,'').trim()||raw||'Parece que hubo un problema. ¿Podrías intentarlo de nuevo?',note:'',vocab:[],mistakes:[],options:[],points:0,mood:2};
   }
 }
 
@@ -215,18 +209,44 @@ export async function genStarter(k){
     const raw=await callLLM(getSys(k),[{role:'user',content:`${framing} ${seed}.`}],400);
     if(S.hist[k].length===0){
       const p=await safeParse(raw);
-      S.hist[k].push({role:'assistant',content:p.reply,display:p.reply,note:p.note});
-      if(p.vocab&&p.vocab.length)p.vocab.forEach(v=>{if(!vocabExists(v.word))S.vocab.push({...v,ts:Date.now()});});
-      if(p.note)S.grammar.push({ch:k,text:p.note,ts:Date.now()});
+      // Starter uses the Q1 `shape` (reply/points/mood/challengeDone) — no vocab/note
+      // fields. The opener's vocab is mined by Q2 on the user's first reply instead.
+      S.hist[k].push({role:'assistant',content:p.reply,display:p.reply,note:''});
       if(typeof p.mood==='number')updMood(k,p.mood);
-      S.currentHints[k]=sanitizeOptions(p.options);
       saveS();
-      if(k===R.cur){rmTyping();appendMsg(S.hist[k].at(-1));renderSide();renderHints(S.currentHints[k]);}
+      if(k===R.cur){rmTyping();appendMsg(S.hist[k].at(-1));renderSide();
+        const hints = await _genOptions(S.hist[k]);
+        S.currentHints[k]=hints;renderHints(hints);}
     }else{if(k===R.cur)rmTyping();}
   }catch(e){
     if(k===R.cur){rmTyping();showToast(friendlyError(e),'#5a0000','#f5e5c0');}
   }
   starterLoading.delete(k);
+}
+
+async function _genOptions(hist){
+  try {
+    const name = chars[R.cur]?.name || 'Profesor';
+    const recent = hist.slice(-6).map(m => {
+      if (m.role === 'assistant') {
+        const text = m.summary || m.content.slice(0, 80);
+        return `${name}: ${text}`;
+      }
+      return `Estudiante: ${m.content.slice(0, 100)}`;
+    }).join('\n');
+    const raw = await callLLM(OPTIONS_PROMPT.replace('{{LV}}', LEVELS[S.level]), [{ role: 'user', content: recent }], 200, { temperature: 0.2 });
+    const p = await safeParse(raw);
+    return p.options && p.options.length ? sanitizeOptions(p.options) : [];
+  } catch (e) { return []; }
+}
+
+async function _summarizeReply(reply){
+  if (reply.length < 80) return '';
+  try {
+    const raw = await callLLM(SUMMARY_PROMPT, [{ role: 'user', content: reply }], 80, { temperature: 0.2 });
+    const p = await safeParse(raw);
+    return (p.summary || '').trim();
+  } catch (e) { return ''; }
 }
 
 // ── Send message ──────────────────────────────────────────────────────────────
@@ -238,14 +258,40 @@ export async function sendMsg(){
   let suggestions=[];
   try{
     let hist=S.hist[R.cur].filter(m=>!m.error);
-    let msgs=hist.slice(-HIST_CAP).map(m=>({role:m.role,content:m.content}));
-    msgs=msgs.filter((m,i)=>i===msgs.length-1||m.role!==msgs[i+1].role);
-    const firstUser=msgs.findIndex(m=>m.role==='user');if(firstUser>0)msgs=msgs.slice(firstUser);
-    const raw=await callLLM(getSys(R.cur),msgs,2500);
-    const p=await safeParse(raw);suggestions=sanitizeOptions(p.options);
-    S.hist[R.cur].push({role:'assistant',content:p.reply,display:p.reply,note:p.note});
+    const name = chars[R.cur]?.name || 'Profesor';
+
+    // Build a single conversation summary — no raw assistant text, no format conflicts
+    const prev = hist.slice(-8, -1).filter(m => m.content && m.content.trim()); // exclude current user msg
+    const summaryLines = prev.map(m => {
+      if (m.role === 'assistant') {
+        const text = m.summary || m.content.slice(0, 80);
+        return `- ${name}: ${text}`;
+      }
+      return `- Usuario: ${m.content}`;
+    }).join('\n');
+    const contextMsg = summaryLines
+      ? `Resumen de la conversación:\n${summaryLines}\n\nÚltimo mensaje: ${txt}`
+      : txt;
+
+    // Build analysis context: include previous character reply so vocab from it gets extracted too
+    const prevAssistant = prev.filter(m => m.role === 'assistant').at(-1);
+    const analysisContent = prevAssistant
+      ? `Personaje (${name}) dijo: "${(prevAssistant.summary || prevAssistant.content).slice(0, 300)}"\n\nEstudiante respondió: "${txt}"`
+      : txt;
+
+    // Q1 (conversation + scoring) ‖ Q2 (vocab/mistakes/note analysis) — parallel
+    const [conRaw, anaRaw] = await Promise.all([
+      callLLM(getSys(R.cur), [{ role: 'user', content: contextMsg }], 2500),
+      callLLM(ANALYSIS_PROMPT.replace('{{LV}}', LEVELS[S.level]), [{ role: 'user', content: analysisContent }], 800, { temperature: 0.2 })
+    ]);
+
+    // Parse conversation (Q1)
+    const p=await safeParse(conRaw);
+    if(!p.reply||!p.reply.trim())throw new Error('empty reply');
+    S.hist[R.cur].push({role:'assistant',content:p.reply,display:p.reply,summary:'',note:''});
     S.totalMsgs++;
-    flyOwl();
+
+    // Scoring
     const today=new Date().toISOString().slice(0,10);
     const ck=R.cur+'_'+today;
     if(p.challengeDone&&!S.challengeDone[ck]){
@@ -254,19 +300,30 @@ export async function sendMsg(){
       awardPoints(10);renderChallengeUI(R.cur);
       showToast('🎉 ¡Desafío completado! +10 pts','#2a5018','#7acc40');
     }
-    let changed=false;
-    if(p.vocab&&p.vocab.length){p.vocab.forEach(v=>{if(!vocabExists(v.word)){S.vocab.push({...v,ts:Date.now()});playVocab();changed=true;}});}
-    if(p.mistakes&&p.mistakes.length){p.mistakes.forEach(m=>S.mistakes.push({...m,ts:Date.now()}));changed=true;}
-    pushLevelOutcome(!(p.mistakes&&p.mistakes.length));
-    if(p.note){S.grammar.push({ch:R.cur,text:p.note,ts:Date.now()});changed=true;}
     if(p.points)awardPoints(p.points);
-  if(typeof p.mood==='number')updMood(R.cur,p.mood);
-  const leveledUp=checkLevelUp();
-  if(changed)renderSide();
-  checkAchievements();
-  playRecv();if(!S.ttsOff)setTimeout(()=>speak(p.reply),350);
-  S.currentHints[R.cur]=suggestions;saveS();
-  if(leveledUp)saveS();
+    if(typeof p.mood==='number')updMood(R.cur,p.mood);
+
+    // Parse analysis (Q2) — vocab, mistakes, note
+    let changed=false;
+    try{
+      const a=await safeParse(anaRaw);
+      if(a.vocab&&a.vocab.length){a.vocab.forEach(v=>{if(!vocabExists(v.word)){S.vocab.push({...v,ts:Date.now()});playVocab();changed=true;}});}
+      if(a.mistakes&&a.mistakes.length){a.mistakes.forEach(m=>S.mistakes.push({...m,ts:Date.now()}));changed=true;}
+      if(a.note){S.grammar.push({ch:R.cur,text:a.note,ts:Date.now()});changed=true;S.hist[R.cur].at(-1).note=a.note;}
+      pushLevelOutcome(!(a.mistakes&&a.mistakes.length));
+    }catch(e2){pushLevelOutcome(true);}
+    if(changed)renderSide();
+
+    // Q2.5 (summarize reply) ‖ Q3 (suggestions) — parallel
+    const [sum, opts] = await Promise.all([
+      _summarizeReply(p.reply),
+      _genOptions(hist)
+    ]);
+    S.hist[R.cur].at(-1).summary = sum;
+    suggestions = opts;
+    checkAchievements();
+    playRecv();if(!S.ttsOff)setTimeout(()=>speak(p.reply),350);
+    S.currentHints[R.cur]=suggestions;saveS();
   }catch(e){const msg=friendlyError(e);S.hist[R.cur].push({role:'assistant',content:msg,display:msg,note:'',error:true});saveS();}
   rmTyping();R.loading=false;document.getElementById('sendB').disabled=false;appendMsg(S.hist[R.cur].at(-1));renderHints(suggestions);document.getElementById('ui').focus();
 }

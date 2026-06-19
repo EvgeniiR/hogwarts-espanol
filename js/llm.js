@@ -14,7 +14,10 @@ function throwIfBad(res,data){
 function isRetryable(err){
   if(err?.name==='AbortError')return false; // request timed out — don't retry
   const status=err&&err.status;
-  return status!==401&&status!==403; // don't retry on invalid/unauthorized key
+  // Don't retry hard client errors — they won't recover: bad key (401/403),
+  // malformed request / wrong model (400/404), unprocessable (422).
+  if([400,401,403,404,422].includes(status))return false;
+  return true; // retry 429 / 5xx / network
 }
 
 function fetchWithTimeout(url,opts,ms=30000){
@@ -23,21 +26,25 @@ function fetchWithTimeout(url,opts,ms=30000){
   return fetch(url,{...opts,signal:ctrl.signal}).finally(()=>clearTimeout(timer));
 }
 
-export async function callLLM(systemPrompt, messages, maxTokens){
+export async function callLLM(systemPrompt, messages, maxTokens, opts={}){
+  const temperature=opts.temperature!==undefined?opts.temperature:0.9;
+  const json=opts.json!==undefined?opts.json:true; // false → expect plain text, skip response_format
   const entry={
     ts:Date.now(),
     provider:R.provider,
     systemPrompt:systemPrompt||'(sin prompt)',
     messages,
     maxTokens,
+    temperature,
+    json,
     status:'pending'
   };
   R.llmLog.push(entry);
   if(R.llmLog.length>50)R.llmLog.shift();
   const fn=()=>{
-    if(R.provider==='groq')return callGroq(systemPrompt,messages,maxTokens);
-    if(R.provider==='openai')return callOpenAI(systemPrompt,messages,maxTokens);
-    return callDeepseek(systemPrompt,messages,maxTokens);
+    if(R.provider==='groq')return callGroq(systemPrompt,messages,maxTokens,temperature,json);
+    if(R.provider==='openai')return callOpenAI(systemPrompt,messages,maxTokens,temperature,json);
+    return callDeepseek(systemPrompt,messages,maxTokens,temperature,json);
   };
   const delays=[1000,2000];
   let attempts=0;
@@ -77,30 +84,30 @@ async function _callProvider(endpoint, key, body, modelOverride, defaultModel, m
   return { text: data.choices?.[0]?.message?.content || '', usage: { in: data.usage?.prompt_tokens || 0, out: data.usage?.completion_tokens || 0 } };
 }
 
-async function callGroq(systemPrompt, messages, maxTokens, modelOverride) {
+async function callGroq(systemPrompt, messages, maxTokens, temperature=0.9, json=true, modelOverride) {
   return _callProvider('https://api.groq.com/openai/v1/chat/completions', R.keys.groq,
-    { messages: _buildMessages(systemPrompt, messages), max_tokens: maxTokens, temperature: 0.9, response_format: { type: 'json_object' } },
+    { messages: _buildMessages(systemPrompt, messages), max_tokens: maxTokens, temperature, ...(json ? { response_format: { type: 'json_object' } } : {}) },
     modelOverride, 'llama-3.3-70b-versatile', 'groq');
 }
 
-async function callOpenAI(systemPrompt, messages, maxTokens, modelOverride) {
+async function callOpenAI(systemPrompt, messages, maxTokens, temperature=0.9, json=true, modelOverride) {
   return _callProvider('https://api.openai.com/v1/chat/completions', R.keys.openai,
-    { messages: _buildMessages(systemPrompt, messages), max_tokens: maxTokens, temperature: 0.9 },
+    { messages: _buildMessages(systemPrompt, messages), max_tokens: maxTokens, temperature, ...(json ? { response_format: { type: 'json_object' } } : {}) },
     modelOverride, 'gpt-4.1-mini', 'openai');
 }
 
-async function callDeepseek(systemPrompt, messages, maxTokens, modelOverride) {
+async function callDeepseek(systemPrompt, messages, maxTokens, temperature=0.9, json=true, modelOverride) {
   return _callProvider('https://api.deepseek.com/chat/completions', R.keys.deepseek,
-    { messages: _buildMessages(systemPrompt, messages), max_tokens: maxTokens, temperature: 0.9, thinking: { type: 'disabled' }, response_format: { type: 'json_object' } },
+    { messages: _buildMessages(systemPrompt, messages), max_tokens: maxTokens, temperature, thinking: { type: 'disabled' }, ...(json ? { response_format: { type: 'json_object' } } : {}) },
     modelOverride, 'deepseek-v4-flash', 'deepseek');
 }
 
 // Direct model call — bypasses callLLM router and log. Used for model comparison
 // where we need explicit provider+model without touching R.provider or S.modelPrefs.
 export async function callModelDirect(provider, model, sys, msgs, maxTokens){
-  if(provider==='groq')return callGroq(sys,msgs,maxTokens,model);
-  if(provider==='openai')return callOpenAI(sys,msgs,maxTokens,model);
-  if(provider==='deepseek')return callDeepseek(sys,msgs,maxTokens,model);
+  if(provider==='groq')return callGroq(sys,msgs,maxTokens,0.9,true,model);
+  if(provider==='openai')return callOpenAI(sys,msgs,maxTokens,0.9,true,model);
+  if(provider==='deepseek')return callDeepseek(sys,msgs,maxTokens,0.9,true,model);
   throw new Error('unknown provider: '+provider);
 }
 
