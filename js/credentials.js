@@ -69,7 +69,7 @@ export function setProvider(p){
   });
   savedKeyIndicator(p);
   const rk=document.getElementById('rememberKey');
-  if(rk)rk.checked=!!(R.cachedCreds&&R.cachedCreds[p]);
+  if(rk)rk.checked=true;
   updProviderBadge();
   setTimeout(()=>{
     const el=document.getElementById(KEY_INPUT_ID[p]);

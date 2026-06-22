@@ -184,7 +184,7 @@ function showSplashAuth(){
     savedKeyIndicator(p);
   });
   setProvider(R.provider);
-  document.getElementById('rememberKey').checked=!!(R.cachedCreds&&R.cachedCreds[R.provider]);
+  document.getElementById('rememberKey').checked=true;
   setTimeout(()=>{
     const el=document.getElementById(KEY_INPUT_ID[R.provider]);
     if(el&&el.style.display!=='none')el.focus();
