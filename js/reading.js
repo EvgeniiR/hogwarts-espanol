@@ -32,6 +32,7 @@ let quizAnswered = false;
 let quizPendingTimer = null;
 let quizKeyHandler = null;
 let quizAnswers = [];
+let quizShuffledOrder = [];
 let readingReqId = 0;
 let sessionHeadlines = {};
 const readingSession = { view:'lobby', source:null, articleId:null, quizIdx:0, quizScore:0, mode:null };
@@ -360,11 +361,16 @@ function renderQuizQuestion(article) {
   quizAnswered = false;
   const q = article.quiz[quizIdx];
   const el = document.getElementById('readingCard');
+  quizShuffledOrder = q.options.map((_, i) => i);
+  for (let i = quizShuffledOrder.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [quizShuffledOrder[i], quizShuffledOrder[j]] = [quizShuffledOrder[j], quizShuffledOrder[i]];
+  }
   el.innerHTML = `<div class="reading-quiz-wrap">
     <div class="reading-quiz-prog">${lang.ui.readingQuizQuestion(quizIdx + 1, article.quiz.length)}</div>
     <div class="reading-quiz-q">${esc(q.q)}</div>
     <div class="reading-quiz-opts">
-      ${q.options.map((opt, i) => `<button class="reading-quiz-opt" data-idx="${i}" onclick="answerQuiz(${i})">${esc(opt)}</button>`).join('')}
+      ${quizShuffledOrder.map((origIdx, displayIdx) => `<button class="reading-quiz-opt" data-idx="${displayIdx}" onclick="answerQuiz(${displayIdx})">${esc(q.options[origIdx])}</button>`).join('')}
     </div>
   </div>
   <details class="reading-article-toggle">
@@ -391,14 +397,16 @@ export function answerQuiz(optIdx) {
   quizPendingTimer = setTimeout(() => {
     quizAnswered = true;
     const correct = article.quiz[quizIdx].correct;
+    const origIdx = quizShuffledOrder[optIdx];
+    const correctDisplayIdx = quizShuffledOrder.indexOf(correct);
     opts.forEach((btn, i) => {
       btn.classList.remove('quiz-pending');
       btn.disabled = true;
-      if (i === correct) btn.classList.add('correct');
-      if (i === optIdx && i !== correct) btn.classList.add('wrong');
+      if (i === correctDisplayIdx) btn.classList.add('correct');
+      if (i === optIdx && origIdx !== correct) btn.classList.add('wrong');
     });
-    if (optIdx === correct) quizScore++;
-    quizAnswers[quizIdx] = optIdx;
+    if (origIdx === correct) quizScore++;
+    quizAnswers[quizIdx] = origIdx;
 
     setTimeout(() => {
       quizIdx++;
