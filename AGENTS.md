@@ -32,10 +32,13 @@ manifest-en.json        ← PWA manifest (English)
 css/styles.css          ← All styles (~430 lines, static)
 js/                     ← ES modules
   lang.js               ← Language selector (reads document.documentElement.lang)
-  lang/
-    es.js               ← Spanish config: strings, prompts, RSS, personas
-    en.js               ← English config: strings, prompts, RSS, personas
-  … (all other modules import lang from './lang.js')
+    lang/
+      es.js               ← Spanish config: strings, prompts, RSS, personas
+      en.js               ← English config: strings, prompts, RSS, personas
+    reading.js            ← Reading comprehension: LLM-generated Markdown articles from 8 topic categories, quiz, recap
+    reading-topics-es.js  ← Reading article topics (Spanish) — 8 categories × 2-3 topics each
+    reading-topics-en.js  ← Reading article topics (English) — 8 categories × 2-3 topics each
+    … (all other modules import lang from './lang.js')
 worker/                 ← Cloudflare Worker (sync backend, serves both sites)
   index.js              ← Worker entry: /auth/google, /auth/google/code, /state
   wrangler.toml         ← Worker config: KV binding, ALLOWED_ORIGINS (both domains)
@@ -83,7 +86,7 @@ When editing a feature, load **only this file** — not the whole project.
 | Spaced repetition (vocab SRS — Leitner levels 0-4) | `js/srs.js` |
 | Settings overlay: voice, model, llm log viewer, model comparison | `js/settings.js` |
 | Model comparison debug tool (compareModels) | `js/model-compare.js` |
-| Reading comprehension (El Profeta): RSS + LLM articles, quiz, recap | `js/reading.js` |
+| Reading comprehension: LLM-generated magazine articles from 8 categories, Markdown rendering, topic selection, quiz, recap | `js/reading.js` |
 | Google OAuth sign-in: One Tap (passive page-load) + OAuth2 popup (button), session token, sign-out | `js/auth.js` |
 | Cloud sync: fetchRemoteState, pushState, mergeAndSync (last-write-wins) | `js/sync.js` |
 | Cloudflare Worker: /auth/google, /auth/google/code, GET/PUT /state, JWT + JWKS verification, multi-origin CORS, language-prefixed KV keys | `worker/index.js` |
@@ -117,6 +120,18 @@ When editing a feature, load **only this file** — not the whole project.
 - Inline review: one word at a time, `srsReveal()` shows definition, `srsAnswer(true/false)` promotes/demotes
 - Review session ends when queue exhausted; `closeSrsReview()` exits early
 - `startSrsReview`, `srsReveal`, `srsAnswer`, `closeSrsReview` are on `window`
+
+**Reading comprehension (reading.js) specifics:**
+- 8 category buttons → direct-to-article LLM generation (no headlines list, no RSS)
+- Categories: magical, stories, howto, nature, places, culture, opinions, news
+- Topics loaded from `js/reading-topics-{es,en}.js`, 2-3 concrete topics per category
+- Topic selection: random with session-level dedup (`recentTopics` Set per category)
+- Article prompt: magazine-style (Nat Geo / BBC Earth tone), returns Markdown
+- Difficulty adaptation: easy→A2, medium→B2, hard→no adaptation
+- Markdown rendering: inline `mdToHtml()` (h1/h2/h3/p/strong/em), no external lib
+- Quiz: generated on-demand from article text (stripped of Markdown via `mdToPlain()`)
+- Regenerate button: clears cache, generates new article for same category
+- Session cache: `sessionArticle` keyed by `category_difficulty`
 
 **For cross-cutting changes** (e.g. a new state field), you'll need `state.js` + the module(s) that read/write it.
 
@@ -162,7 +177,7 @@ S = {
   musicOff: false,           // persisted music on/off state
   ttsOff: false,             // persisted TTS mute state (use !==undefined check in loadS)
   currentHints: {hermione:[], dumbledore:[], hagrid:[], snape:[]},  // persisted reply-suggestion hints per character
-  readingArticles: [],          // pruned to last 10 on save; [{id,source,title,text,quiz,ts,completed,difficulty}]
+  readingArticles: [],          // pruned to last 10 on save; [{id,category,title,text,quiz,ts,completed,difficulty}] (note: `source` field renamed to `category`)
   readingCompleted: 0,          // lifetime count of completed articles
   readingCompletedIds: {},      // article IDs that have been completed (prevents double points)
   repairProvider: 'groq',    // provider used for JSON repair (Groq always, or '' = main provider)

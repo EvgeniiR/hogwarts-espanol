@@ -28,7 +28,7 @@ async function _loadReading() {
   if (_readingM) return;
   _readingLoad = import('./reading.js').then(m => {
     _readingM = m;
-    const fns = ['openReading','closeReading','selectReadingSource','selectArticle','startQuiz','startRecap','answerQuiz','submitRecap','returnToLobby','setReadingDiff','refreshSource','readingListen'];
+    const fns = ['openReading','closeReading','selectReadingCategory','selectArticle','startQuiz','startRecap','answerQuiz','submitRecap','returnToLobby','setReadingDiff','regenerateArticle','readingListen'];
     fns.forEach(k => { window[k] = m[k]; });
     _readingLoad = null;
   });
@@ -404,7 +404,7 @@ Object.assign(window,{
   // Reading comprehension (lazy)
   openReading() { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.openReading()); },
   closeReading() { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.closeReading()); },
-  selectReadingSource(s) { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.selectReadingSource(s)); },
+  selectReadingCategory(s) { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.selectReadingCategory(s)); },
   selectArticle(id) { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.selectArticle(id)); },
   startQuiz() { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.startQuiz()); },
   startRecap() { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.startRecap()); },
@@ -412,6 +412,6 @@ Object.assign(window,{
   submitRecap() { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.submitRecap()); },
   returnToLobby() { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.returnToLobby()); },
   setReadingDiff(d) { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.setReadingDiff(d)); },
-  refreshSource(s) { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.refreshSource(s)); },
+  regenerateArticle() { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.regenerateArticle()); },
   readingListen(btn) { (_readingM ? Promise.resolve() : _loadReading()).then(() => _readingM.readingListen(btn)); },
 });

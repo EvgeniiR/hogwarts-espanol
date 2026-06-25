@@ -1,28 +1,14 @@
 // ── EL PROFETA / THE DAILY PROPHET ─────────────────────────────────────────
-// Reading comprehension overlay. Nine content sources: eight human-written RSS
-// feeds + LLM-generated Harry Potter lore. User reads an article then takes a
-// quiz or writes a recap verified by one LLM call.
+// Reading comprehension overlay. Eight category buttons → LLM-generated
+// Markdown article → quiz or written-recap verified by one LLM call.
+// Topics are drawn from reading-topics-{es,en}.js with session-level dedup.
 import { S, saveS } from './state.js';
 import { esc, showToast, extractJSON } from './helpers.js';
 import { callLLM } from './llm.js';
 import { awardPoints } from './progress.js';
 import lang from './lang.js';
 
-const RSS2JSON_URL = 'https://api.rss2json.com/v1/api.json';
 const DIFF_MULT = { easy:1, medium:1.5, hard:2 };
-
-function timeAgo(ts) {
-  const diff = Date.now() - ts;
-  const rtf = new Intl.RelativeTimeFormat(lang.dateLocale, { numeric: 'auto' });
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return rtf.format(0, 'minute');
-  if (mins < 60) return rtf.format(-mins, 'minute');
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return rtf.format(-hrs, 'hour');
-  const days = Math.floor(hrs / 24);
-  if (days < 30) return rtf.format(-days, 'day');
-  return rtf.format(-Math.floor(days/30), 'month');
-}
 
 let currentArticleId = null;
 let readingMode = null;   // 'quiz' | 'recap' | null
@@ -34,8 +20,105 @@ let quizKeyHandler = null;
 let quizAnswers = [];
 let quizShuffledOrder = [];
 let readingReqId = 0;
-let sessionHeadlines = {};
-const readingSession = { view:'lobby', source:null, articleId:null, quizIdx:0, quizScore:0, mode:null };
+const readingSession = { view:'lobby', category:null, articleId:null, quizIdx:0, quizScore:0, mode:null };
+const sessionArticle = {};   // cache: 'category_difficulty' → article
+const recentTopics = {};     // dedup: categoryKey → Set
+let readingTopics = null;    // loaded topics module
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+async function loadTopics() {
+  if (readingTopics) return readingTopics;
+  const langAttr = document.documentElement.lang || 'es';
+  readingTopics = (await import(langAttr === 'en' ? './reading-topics-en.js' : './reading-topics-es.js')).default;
+  return readingTopics;
+}
+
+function mdToHtml(md) {
+  // Escape HTML entities first (same as esc() but preserve \n for line splitting)
+  let s = String(md || '');
+  s = s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const lines = s.split('\n');
+  const result = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let content, tag;
+    if (trimmed.startsWith('### ')) {
+      content = trimmed.slice(4);
+      tag = 'h3';
+    } else if (trimmed.startsWith('## ')) {
+      content = trimmed.slice(3);
+      tag = 'h2';
+    } else if (trimmed.startsWith('# ')) {
+      content = trimmed.slice(2);
+      tag = 'h1';
+    } else {
+      content = trimmed;
+      tag = 'p';
+    }
+    // Apply inline formatting: **bold** then *italic*
+    content = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    content = content.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+    result.push(`<${tag}>${content}</${tag}>`);
+  }
+  return result.join('');
+}
+
+function mdToPlain(md) {
+  return (md || '')
+    .replace(/^### /gm, '')
+    .replace(/^## /gm, '')
+    .replace(/^# /gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1');
+}
+
+async function pickTopic(category) {
+  await loadTopics();
+  const cat = readingTopics[category];
+  if (!cat || !cat.topics || !cat.topics.length) return null;
+  if (!recentTopics[category]) recentTopics[category] = new Set();
+  const set = recentTopics[category];
+  const available = cat.topics.filter(t => !set.has(t));
+  if (available.length === 0) {
+    set.clear();
+    showToast(lang.ui.readingTopicsRepeating);
+    // All topics available again after clear; pick from full set
+    const idx = Math.floor(Math.random() * cat.topics.length);
+    const topic = cat.topics[idx];
+    set.add(topic);
+    return topic;
+  }
+  const idx = Math.floor(Math.random() * available.length);
+  const topic = available[idx];
+  set.add(topic);
+  return topic;
+}
+
+async function generateArticle(category, topic) {
+  const dc = lang.readingDiffConfig[S.readingDifficulty];
+  const rawMarkdown = await callLLM(
+    lang.prompts.articleSys,
+    [{ role: 'user', content: lang.prompts.articleUser(topic, dc) }],
+    dc.tokens,
+    { json: false }
+  );
+  const titleMatch = rawMarkdown.match(/^# (.+)$/m);
+  const title = titleMatch ? titleMatch[1].trim() : rawMarkdown.substring(0, 60).trim().replace(/\n/g, ' ');
+  return {
+    id: 'r_' + category + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    category,
+    title,
+    text: rawMarkdown,
+    quiz: null,
+    ts: Date.now(),
+    completed: false,
+    difficulty: S.readingDifficulty
+  };
+}
+
+// ── overlay open/close ──────────────────────────────────────────────────────
 
 export function setReadingDiff(diff) {
   S.readingDifficulty = diff;
@@ -43,7 +126,6 @@ export function setReadingDiff(diff) {
   saveS();
 }
 
-// ── overlay open/close ──────────────────────────────────────────────────────
 export function openReading() {
   document.getElementById('readingOv').style.display = 'flex';
   if (!quizKeyHandler) {
@@ -67,16 +149,15 @@ function restoreSession() {
   readingMode = readingSession.mode;
   quizIdx = readingSession.quizIdx;
   quizScore = readingSession.quizScore;
-  if (readingSession.view === 'headlines' && readingSession.source) {
-    const cached = sessionHeadlines[readingSession.source];
-    if (cached && cached.length) {
-      renderHeadlines(cached, readingSession.source);
-    } else {
-      renderReadingLobby();
-    }
-    return;
+  // Try sessionArticle cache first (keyed by category+difficulty), then S.readingArticles
+  let article = null;
+  if (readingSession.category) {
+    const cacheKey = readingSession.category + '_' + S.readingDifficulty;
+    article = sessionArticle[cacheKey];
   }
-  const article = S.readingArticles.find(a => a.id === readingSession.articleId);
+  if (!article && readingSession.articleId) {
+    article = S.readingArticles.find(a => a.id === readingSession.articleId);
+  }
   if (!article) { renderReadingLobby(); return; }
   if (readingSession.view === 'article') {
     renderArticleView(article);
@@ -96,9 +177,9 @@ function restoreSession() {
 export function closeReading() {
   window.speechSynthesis.cancel();
   document.getElementById('readingOv').style.display = 'none';
-  const rp=document.getElementById('selReadingPopup');if(rp)rp.style.display='none';
+  const rp = document.getElementById('selReadingPopup'); if (rp) rp.style.display = 'none';
   if (quizKeyHandler) { document.removeEventListener('keydown', quizKeyHandler); quizKeyHandler = null; }
-  readingSession.view = readingMode === 'quiz' ? 'quiz' : readingMode === 'recap' ? 'recap' : currentArticleId ? 'article' : readingSession.source ? 'headlines' : 'lobby';
+  readingSession.view = readingMode === 'quiz' ? 'quiz' : readingMode === 'recap' ? 'recap' : currentArticleId ? 'article' : 'lobby';
   readingSession.articleId = currentArticleId;
   readingSession.quizIdx = quizIdx;
   readingSession.quizScore = quizScore;
@@ -106,6 +187,7 @@ export function closeReading() {
 }
 
 // ── lobby ───────────────────────────────────────────────────────────────────
+
 export function renderReadingLobby() {
   currentArticleId = null;
   readingMode = null;
@@ -113,7 +195,7 @@ export function renderReadingLobby() {
   if (quizPendingTimer) { clearTimeout(quizPendingTimer); quizPendingTimer = null; }
   const el = document.getElementById('readingCard');
   const dc = lang.readingDiffConfig;
-  const sources = lang.rssSources;
+  const categories = lang.readingCategories;
   el.innerHTML = `<div class="reading-lobby">
     <div class="reading-lobby-title">${lang.ui.readingTitle}</div>
     <div class="reading-lobby-sub">${lang.ui.readingSubtitle}</div>
@@ -124,166 +206,79 @@ export function renderReadingLobby() {
       <button class="reading-diff-btn ${S.readingDifficulty==='hard'?'active':''}" data-diff="hard" onclick="setReadingDiff('hard')">${dc.hard.icon} ${dc.hard.label}</button>
     </div>
     <div class="reading-source-grid">
-      ${sources.map(s => {
-        const magicKey = lang.rssSources[0]; // first source is always magic/magico
-        return `<button class="reading-source-btn${s===magicKey?' reading-source-btn--magic':''}" onclick="selectReadingSource('${s}')">
-          <span class="src-icon">${lang.rssSourceIcons[s]||''}</span>${lang.rssBtnLabels[s]}<span class="src-label">${lang.rssSourceLabels[s]}</span>
-        </button>`;
-      }).join('')}
+      ${categories.map(cat => `<button class="reading-source-btn${cat.key==='magical'?' reading-source-btn--magic':''}" onclick="selectReadingCategory('${cat.key}')">
+        <span class="src-icon">${cat.icon}</span>${cat.label}
+      </button>`).join('')}
     </div>
   </div>`;
 }
 
-// ── source selection ────────────────────────────────────────────────────────
-export async function selectReadingSource(source) {
+// ── category selection (direct-to-article) ───────────────────────────────────
+
+export async function selectReadingCategory(categoryKey) {
   const reqId = ++readingReqId;
   const el = document.getElementById('readingCard');
-  const magicKey = lang.rssSources[0];
 
-  // Session cache — reuse already-fetched headlines
-  if (sessionHeadlines[source] && sessionHeadlines[source].length) {
-    // For LLM articles, invalidate cache if difficulty changed
-    if (source === magicKey && sessionHeadlines._magicDiff !== S.readingDifficulty) {
-      delete sessionHeadlines[source];
-    } else {
-      readingSession.source = source;
-      renderHeadlines(sessionHeadlines[source], source);
-      return;
-    }
+  // Session cache — reuse already-generated article for this category+difficulty
+  const cacheKey = categoryKey + '_' + S.readingDifficulty;
+  if (sessionArticle[cacheKey]) {
+    readingSession.category = categoryKey;
+    currentArticleId = sessionArticle[cacheKey].id;
+    renderArticleView(sessionArticle[cacheKey]);
+    return;
   }
 
-  el.innerHTML = `<div class="mem-loading" style="text-align:center;padding:40px;">${lang.ui.readingLoading}</div><button class="reading-back-btn" onclick="returnToLobby()">${lang.ui.readingCancelBtn}</button>`;
+  el.innerHTML = `<div class="mem-loading" style="text-align:center;padding:40px;">${lang.ui.readingLoadingArticle}</div><button class="reading-back-btn" onclick="returnToLobby()">${lang.ui.readingCancelBtn}</button>`;
 
   try {
-    let headlines;
-    if (source === magicKey) {
-      headlines = await generateLLMArticles();
-    } else {
-      headlines = await fetchRSSHeadlines(lang.rssFeeds[source], source, reqId);
-    }
-    if (reqId !== readingReqId) return;
-    if (!headlines || !headlines.length) {
+    const topic = await pickTopic(categoryKey);
+    if (!topic) {
+      if (reqId !== readingReqId) return;
       el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--ink);">
         <div style="font-size:14px;margin-bottom:8px;">${lang.ui.readingLoadFailed}</div>
-        <div style="font-size:11px;color:#7a5520;margin-bottom:12px;">${lang.ui.readingLoadFailedSub}</div>
-        <div style="display:flex;gap:6px;justify-content:center;">
-          <button class="reading-back-btn" onclick="refreshSource('${source}')">${lang.ui.readingRefresh}</button>
-          <button class="reading-back-btn" onclick="returnToLobby()">${lang.ui.readingBack}</button>
-        </div>
+        <button class="reading-back-btn" onclick="returnToLobby()">${lang.ui.readingBack}</button>
       </div>`;
       return;
     }
     if (reqId !== readingReqId) return;
 
-    sessionHeadlines[source] = headlines;
-    if (source === magicKey) sessionHeadlines._magicDiff = S.readingDifficulty;
+    const article = await generateArticle(categoryKey, topic);
+    if (reqId !== readingReqId) return;
+
+    sessionArticle[cacheKey] = article;
+    readingSession.category = categoryKey;
+    currentArticleId = article.id;
 
     S.readingArticles = S.readingArticles || [];
-    headlines.forEach(h => {
-      if (!S.readingArticles.find(a => a.id === h.id)) {
-        S.readingArticles.push(h);
-      }
-    });
+    S.readingArticles.push(article);
     S.readingArticles = S.readingArticles.slice(-10);
     saveS();
 
-    readingSession.source = source;
-    renderHeadlines(headlines, source);
+    renderArticleView(article);
   } catch (e) {
     if (reqId !== readingReqId) return;
     el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--ink);">
       <div style="font-size:14px;margin-bottom:8px;">${lang.ui.readingLoadError}</div>
       <div style="font-size:11px;color:#7a5520;margin-bottom:12px;">${esc(e.message)}</div>
-      <button class="reading-back-btn" onclick="returnToLobby()">${lang.ui.readingBack}</button>
+      <div style="display:flex;gap:6px;justify-content:center;">
+        <button class="reading-back-btn" onclick="selectReadingCategory('${esc(categoryKey)}')">${lang.ui.readingRetry}</button>
+        <button class="reading-back-btn" onclick="returnToLobby()">${lang.ui.readingBack}</button>
+      </div>
     </div>`;
   }
 }
 
-export function refreshSource(source) {
-  delete sessionHeadlines[source];
-  selectReadingSource(source);
-}
-
-// ── RSS fetching ────────────────────────────────────────────────────────────
-async function fetchRSSHeadlines(rssUrl, source, reqId) {
-  const url = `${RSS2JSON_URL}?rss_url=${encodeURIComponent(rssUrl)}`;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (data.status !== 'ok' || !data.items) return null;
-  return data.items.slice(0, 8).map(item => {
-    const text = (item.content || item.description || '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/<\/?(br|p|div|h[1-6]|li|ul|ol|blockquote|hr)[^>]*>/gi, '\n')
-      .replace(/<[^>]*>/g, '')
-      .replace(/[ \t]+/g, ' ')
-      .replace(/\n[ \t]+/g, '\n')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-    return {
-      id: 'r_' + source + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-      source,
-      title: (item.title || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
-      text,
-      link: item.link || '',
-      quiz: null,
-      ts: Date.now(),
-      completed: false,
-      difficulty: S.readingDifficulty
-    };
-  });
-}
-
-// ── LLM article generation ──────────────────────────────────────────────────
-async function generateLLMArticles() {
-  const dc = lang.readingDiffConfig[S.readingDifficulty];
-  const el = document.getElementById('readingCard');
-  el.innerHTML = `<div class="mem-loading" style="text-align:center;padding:40px;">${lang.ui.readingLoadingArticle}</div><button class="reading-back-btn" onclick="returnToLobby()">${lang.ui.readingCancelBtn}</button>`;
-
-  // Article + quiz in one large JSON (up to 4000 tokens) is the most
-  // truncation-prone call in the app. If the first parse fails, regenerate once
-  // before surfacing the error to the caller's retry UI.
-  let parsed;
-  try {
-    parsed = extractJSON(await callLLM(lang.prompts.magicSys(dc.vocab), [{ role: 'user', content: lang.prompts.magicUser(dc.words) }], dc.tokens, {type:'reading'}));
-  } catch (e) {
-    parsed = extractJSON(await callLLM(lang.prompts.magicSys(dc.vocab), [{ role: 'user', content: lang.prompts.magicUser(dc.words) }], dc.tokens, {type:'reading'}));
-  }
-  const magicKey = lang.rssSources[0];
-  const a = parsed.article || {};
-  return [{
-    id: 'r_' + magicKey + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-    source: magicKey,
-    title: a.title || '',
-    text: a.text || '',
-    quiz: a.quiz || null,
-    ts: Date.now(),
-    completed: false,
-    difficulty: S.readingDifficulty
-  }];
-}
-
-// ── headline list ───────────────────────────────────────────────────────────
-function renderHeadlines(headlines, source) {
-  const el = document.getElementById('readingCard');
-  el.innerHTML = `<div class="reading-headlines">
-    ${headlines.map(h => {
-      const wc = h.text ? h.text.split(/\s+/).length : 0;
-      return `<div class="reading-headline-item" onclick="selectArticle('${esc(h.id)}')">
-        <span class="hl-icon">${lang.rssSourceIcons[h.source]||''}</span>
-        <span>${esc(h.title)}<span style="font-size:10px;color:#7a5520;display:block;">${lang.ui.readingWords(wc)} · ${timeAgo(h.ts)}</span></span>
-      </div>`;
-    }).join('')}
-  </div>
-  <div style="display:flex;gap:6px;justify-content:center;">
-    <button class="reading-back-btn" onclick="returnToLobby()">${lang.ui.readingBack}</button>
-    <button class="reading-back-btn" onclick="refreshSource('${source}')">${lang.ui.readingRefresh}</button>
-  </div>`;
+export async function regenerateArticle() {
+  const category = readingSession.category;
+  if (!category) return;
+  const cacheKey = category + '_' + S.readingDifficulty;
+  delete sessionArticle[cacheKey];
+  await selectReadingCategory(category);
 }
 
 // ── article selection ───────────────────────────────────────────────────────
+
 export async function selectArticle(articleId) {
-  const reqId = ++readingReqId;
   currentArticleId = articleId;
   readingMode = null;
   quizIdx = 0; quizScore = 0; quizAnswered = false;
@@ -291,13 +286,16 @@ export async function selectArticle(articleId) {
   const article = S.readingArticles.find(a => a.id === articleId);
   if (!article) { renderReadingLobby(); return; }
 
+  readingSession.category = article.category || null;
   renderArticleView(article);
 }
 
 // ── quiz generation ─────────────────────────────────────────────────────────
+
 async function generateQuizForArticle(article) {
   const dc = lang.readingDiffConfig[article.difficulty || S.readingDifficulty];
-  const raw = await callLLM(lang.prompts.quizSys(dc.quizInstr), [{ role: 'user', content: lang.prompts.quizUser(article.text.substring(0, 4000)) }], 1500, { temperature: 0.2, type:'quiz' });
+  const plainText = mdToPlain(article.text);
+  const raw = await callLLM(lang.prompts.quizSys(dc.quizInstr), [{ role: 'user', content: lang.prompts.quizUser(plainText.substring(0, 4000)) }], 1500, { temperature: 0.2, type:'quiz' });
   const parsed = extractJSON(raw);
   if (parsed.quiz && parsed.quiz.length) {
     article.quiz = parsed.quiz;
@@ -305,32 +303,33 @@ async function generateQuizForArticle(article) {
 }
 
 // ── article view ────────────────────────────────────────────────────────────
+
 function renderArticleView(article) {
   const isCompleted = S.readingCompletedIds[article.id];
   const el = document.getElementById('readingCard');
-  const escText = esc(article.text);
-  const sourceLabel = lang.rssSourceLabels[article.source] || article.source;
-  const txtAttr = article.text.substring(0, 4000).replace(/"/g, '&quot;').replace(/\n/g, ' ');
+  const catDef = lang.readingCategories.find(c => c.key === article.category) || {};
+  const txtAttr = mdToPlain(article.text).substring(0, 4000).replace(/"/g, '&quot;').replace(/\n/g, ' ');
   el.innerHTML = `<div class="reading-article-wrap">
     <div class="reading-article-title">${esc(article.title)}</div>
     <div class="reading-article-meta">
-      <span>${lang.rssSourceIcons[article.source]||''} ${sourceLabel}</span>
+      <span>${catDef.icon || ''} ${catDef.label || article.category}</span>
       ${isCompleted ? `<span style="color:#2a8018;">${lang.ui.readingCompleted}</span>` : `<span>${lang.ui.readingNew}</span>`}
       ${article.ts ? '<span>'+new Date(article.ts).toLocaleDateString(lang.dateLocale)+'</span>' : ''}
-      ${article.link && article.source!==lang.rssSources[0] ? `<a href="${esc(article.link)}" target="_blank" style="color:var(--gold);font-size:10px;text-decoration:none;" title="${lang.ui.readingSourceTitle}">🔗 ${lang.ui.readingSourceTitle}</a>` : ''}
       <button class="reading-listen-btn" data-txt="${txtAttr}" data-rate="0.75" onclick="readingListen(this)">${lang.ui.readingListenBtn}</button>
     </div>
-    <div class="reading-article-text">${escText}</div>
+    <div class="reading-article-text">${mdToHtml(article.text)}</div>
   </div>
   ${isCompleted ? `<div style="text-align:center;font-size:10px;color:#7a5520;margin-bottom:4px;">${lang.ui.readingAlreadyDone}</div>` : ''}
   <div class="reading-actions">
     <button onclick="startQuiz()">${lang.ui.readingQuizBtn}</button>
     <button onclick="startRecap()">${lang.ui.readingRecapBtn}</button>
+    <button onclick="regenerateArticle()">${lang.ui.readingRegenerate}</button>
   </div>
-  <button class="reading-back-btn" onclick="selectReadingSource('${esc(article.source)}')">${lang.ui.readingMoreArticles(article.source)}</button>`;
+  <button class="reading-back-btn" onclick="returnToLobby()">${lang.ui.readingBack}</button>`;
 }
 
 // ── quiz ────────────────────────────────────────────────────────────────────
+
 export async function startQuiz() {
   const article = S.readingArticles.find(a => a.id === currentArticleId);
   if (!article) return;
@@ -375,7 +374,7 @@ function renderQuizQuestion(article) {
   </div>
   <details class="reading-article-toggle">
     <summary style="cursor:pointer;font-size:11px;color:#7a5520;font-family:'Cinzel',Georgia,serif;padding:4px 8px;">${lang.ui.readingArticleToggle}</summary>
-    <div class="reading-article-toggle-text">${esc(article.text)}</div>
+    <div class="reading-article-toggle-text">${mdToHtml(article.text)}</div>
   </details>
   <button class="reading-back-btn" onclick="selectArticle('${esc(article.id)}')">${lang.ui.readingCancelBtn}</button>`;
 }
@@ -462,6 +461,7 @@ function renderQuizResults(article) {
 }
 
 // ── recap ───────────────────────────────────────────────────────────────────
+
 export function startRecap() {
   readingMode = 'recap';
   const article = S.readingArticles.find(a => a.id === currentArticleId);
@@ -471,7 +471,7 @@ export function startRecap() {
     <div style="font-size:11px;color:#7a5520;margin-bottom:6px;">${lang.ui.readingRecapInstr}</div>
     <details class="reading-article-toggle">
       <summary style="cursor:pointer;font-size:11px;color:#7a5520;font-family:'Cinzel',Georgia,serif;padding:4px 8px;">${lang.ui.readingArticleToggle}</summary>
-      <div class="reading-article-toggle-text">${esc(article.text)}</div>
+      <div class="reading-article-toggle-text">${mdToHtml(article.text)}</div>
     </details>
     <textarea class="reading-recap-ta" id="recapTa" placeholder="${lang.ui.readingRecapPlaceholder}"></textarea>
     <div class="reading-actions" style="margin-top:10px;">
@@ -543,6 +543,7 @@ function renderRecapResults(article, score, feedback, missedPoints, pointsAwarde
 }
 
 // ── TTS for article reading ─────────────────────────────────────────────────
+
 export function readingListen(btn) {
   if (window.speechSynthesis.speaking) {
     window.speechSynthesis.cancel();
@@ -565,6 +566,11 @@ export function readingListen(btn) {
 }
 
 export function returnToLobby() {
-  readingSession.view = 'lobby'; readingSession.source = null; readingSession.articleId = null; readingSession.quizIdx = 0; readingSession.quizScore = 0; readingSession.mode = null;
+  readingSession.view = 'lobby';
+  readingSession.category = null;
+  readingSession.articleId = null;
+  readingSession.quizIdx = 0;
+  readingSession.quizScore = 0;
+  readingSession.mode = null;
   renderReadingLobby();
 }

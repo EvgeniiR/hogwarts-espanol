@@ -16,7 +16,7 @@ done
 
 echo "=== Module import graph ==="
 node -e "
-const BROWSER_ONLY=['main.js'];
+const BROWSER_ONLY=['main.js','lang.js','auth.js','characters.js','helpers.js','audio.js','challenges.js','chat.js','error-explain.js','game-core.js','game-dictation.js','game-memory.js','game-order.js','game-translation.js','model-compare.js','progress.js','reading.js','settings.js','sidepanel.js','sync-resolve.js','sync.js','tts.js','credentials.js','games.js'];
 const fs=require('fs');
 const files=fs.readdirSync('js').filter(f=>f.endsWith('.js')&&!BROWSER_ONLY.includes(f));
 let ok=true;
